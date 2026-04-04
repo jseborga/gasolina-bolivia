@@ -1,12 +1,21 @@
-type StationCardProps = {
+
+export type StationCardProps = {
   name: string
-  zone: string | null
-  address: string | null
-  latitude: number | null
-  longitude: number | null
+  zone?: string | null
+  address?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  statusLabel?: string
 }
 
-export function StationCard({ name, zone, address, latitude, longitude }: StationCardProps) {
+export function StationCard({
+  name,
+  zone,
+  address,
+  latitude,
+  longitude,
+  statusLabel = 'Activo',
+}: StationCardProps) {
   return (
     <article className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <div className="flex items-start justify-between gap-4">
@@ -15,11 +24,13 @@ export function StationCard({ name, zone, address, latitude, longitude }: Statio
           <p className="mt-1 text-sm text-slate-600">Zona: {zone ?? 'Sin zona'}</p>
           <p className="mt-1 text-sm text-slate-500">Dirección: {address ?? 'Sin dirección'}</p>
         </div>
-        <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">Activo</span>
+        <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">{statusLabel}</span>
       </div>
-      <div className="mt-4 text-xs text-slate-400">
-        Lat: {latitude ?? '-'} · Lng: {longitude ?? '-'}
-      </div>
+      {(latitude != null || longitude != null) && (
+        <div className="mt-4 text-xs text-slate-400">
+          Lat: {latitude ?? '-'} · Lng: {longitude ?? '-'}
+        </div>
+      )}
     </article>
   )
 }
