@@ -21,3 +21,8 @@ export type LatestReport = {
 export type StationWithLatest = Station & {
   latestReport: LatestReport | null;
 };
+
+export type UserLocation = {
+  latitude: number;
+  longitude: number;
+};

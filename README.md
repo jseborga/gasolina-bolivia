@@ -1,28 +1,24 @@
-# SurtiMapa V8
+# SurtiMapa V9
 
-Esta versión agrega:
-
-- mapa real con Leaflet + OpenStreetMap
-- pines por estado
+Versión con:
+- lectura de surtidores y reportes desde Supabase
+- formulario de reporte
+- mapa con Leaflet
 - filtros por combustible, estado y zona
-- formulario funcional de reportes
-- lectura de último reporte por surtidor
+- geolocalización opcional
+- cálculo de distancia
+- orden por cercanía, recencia, disponibilidad y fila
 
-## Variables de entorno
-
+## Variables
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://TU-PROYECTO.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
 ```
 
-## Despliegue en EasyPanel
+## Despliegue
+1. Subir el contenido a GitHub
+2. Verificar variables de entorno en EasyPanel
+3. Redeploy
 
-- conecta el repo
-- usa el Dockerfile incluido
-- agrega las variables de entorno
-- haz redeploy
-
-## SQL
-Ejecuta:
-
-- `supabase/001_reset_all.sql`
+## Nota
+La ubicación del usuario se usa solo en frontend y no se guarda en Supabase.

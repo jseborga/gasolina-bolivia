@@ -1,11 +1,17 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
-import type { StationWithLatest } from "@/lib/types";
+import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
+import { useEffect } from "react";
+import { formatDistanceKm } from "@/lib/geo";
+import { getAvailabilityLabel, getFuelLabel, getQueueLabel } from "@/lib/reporting";
+import type { StationWithLatest, UserLocation } from "@/lib/types";
 
 type Props = {
   stations: StationWithLatest[];
+  userLocation?: UserLocation | null;
+  distances?: Record<number, number | null>;
 };
 
 function markerColor(availability?: string | null) {
@@ -14,13 +20,28 @@ function markerColor(availability?: string | null) {
   return "#f59e0b";
 }
 
-function availabilityLabel(value?: string | null) {
-  if (value === "si_hay") return "Sí hay";
-  if (value === "no_hay") return "No hay";
-  return "Sin dato";
+function RecenterMap({ userLocation }: { userLocation?: UserLocation | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (userLocation) {
+      map.setView([userLocation.latitude, userLocation.longitude], 13, {
+        animate: true,
+      });
+    }
+  }, [map, userLocation]);
+
+  return null;
 }
 
-export function MapView({ stations }: Props) {
+const userIcon = L.divIcon({
+  className: "",
+  html: '<div style="width:18px;height:18px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 0 0 3px rgba(37,99,235,.25)"></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
+export function MapView({ stations, userLocation, distances = {} }: Props) {
   const withCoords = stations.filter(
     (station) =>
       typeof station.latitude === "number" &&
@@ -29,24 +50,35 @@ export function MapView({ stations }: Props) {
 
   if (withCoords.length === 0) {
     return (
-      <div className="flex h-[360px] items-center justify-center rounded-[28px] border border-dashed border-slate-300 bg-slate-50 text-slate-500">
+      <div className="flex h-[380px] items-center justify-center rounded-[28px] border border-dashed border-slate-300 bg-slate-50 text-slate-500">
         No hay coordenadas suficientes para mostrar el mapa.
       </div>
     );
   }
 
+  const defaultCenter: [number, number] = userLocation
+    ? [userLocation.latitude, userLocation.longitude]
+    : [-16.5, -68.13];
+
   return (
-    <div className="h-[360px] overflow-hidden rounded-[28px] border border-slate-200 shadow-sm">
+    <div className="h-[380px] overflow-hidden rounded-[28px] border border-slate-200 shadow-sm">
       <MapContainer
-        center={[-16.5, -68.13]}
+        center={defaultCenter}
         zoom={12}
         scrollWheelZoom={true}
         style={{ height: "100%", width: "100%" }}
       >
+        <RecenterMap userLocation={userLocation} />
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        {userLocation && (
+          <Marker position={[userLocation.latitude, userLocation.longitude]} icon={userIcon}>
+            <Popup>Tu ubicación aproximada</Popup>
+          </Marker>
+        )}
 
         {withCoords.map((station) => (
           <CircleMarker
@@ -61,12 +93,15 @@ export function MapView({ stations }: Props) {
             }}
           >
             <Popup>
-              <div className="min-w-[180px] space-y-1 text-sm">
+              <div className="min-w-[200px] space-y-1 text-sm">
                 <div className="font-semibold">{station.name}</div>
                 <div>Zona: {station.zone ?? "Sin zona"}</div>
-                <div>Disponibilidad: {availabilityLabel(station.latestReport?.availability_status)}</div>
-                <div>Combustible: {station.latestReport?.fuel_type ?? "Sin dato"}</div>
-                <div>Fila: {station.latestReport?.queue_status ?? "Sin dato"}</div>
+                <div>Disponibilidad: {getAvailabilityLabel(station.latestReport?.availability_status)}</div>
+                <div>Combustible: {getFuelLabel(station.latestReport?.fuel_type)}</div>
+                <div>Fila: {getQueueLabel(station.latestReport?.queue_status)}</div>
+                {distances[station.id] != null && (
+                  <div>Distancia: {formatDistanceKm(distances[station.id])}</div>
+                )}
               </div>
             </Popup>
           </CircleMarker>
