@@ -1,9 +1,9 @@
-FROM node:20-alpine AS deps
+FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
 ARG NEXT_PUBLIC_SUPABASE_URL
@@ -17,7 +17,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
 ARG NEXT_PUBLIC_SUPABASE_URL
