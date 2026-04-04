@@ -1,5 +1,5 @@
-import { getSupabaseClient } from "@/lib/supabase";
 import { StationCard } from "@/components/station-card";
+import { getSupabaseClient } from "@/lib/supabase";
 
 type Station = {
   id: number;
@@ -45,10 +45,15 @@ export default async function HomePage() {
           </p>
         </div>
 
+        <div className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-900">Mapa / zona de reportes</h2>
+          <p className="mt-2 text-slate-600">
+            Aquí irá el mapa con surtidores, filtros y reportes en tiempo real.
+          </p>
+        </div>
+
         <section>
-          <h2 className="mb-4 text-xl font-semibold text-slate-900">
-            Surtidores activos
-          </h2>
+          <h2 className="mb-4 text-xl font-semibold text-slate-900">Surtidores activos</h2>
 
           {error ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">

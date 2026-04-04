@@ -1,40 +1,14 @@
-# SurtiMapa
+# SurtiMapa v5
 
-Proyecto base en Next.js + Supabase para reportes de surtidores.
+Versión base para EasyPanel + Next.js + Supabase.
 
-## Variables de entorno
+## Variables requeridas
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
-Configura estas variables en EasyPanel:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://TU-PROYECTO.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxx
-```
-
-## Desarrollo local
-
-```bash
-npm install
-npm run dev
-```
-
-## Build
-
-```bash
-npm run build
-npm run start
-```
-
-## Supabase
-
-Ejecuta el archivo:
-
-- `supabase/001_reset_all.sql`
-
-## Deploy en EasyPanel
-
-- Conecta el repositorio GitHub
-- Usa el `Dockerfile`
-- Puerto interno: `3000`
-- Agrega las variables de entorno
-- Redeploy
+## Despliegue
+1. Sube este repo a GitHub.
+2. Conecta el repo en EasyPanel.
+3. Configura las variables de entorno.
+4. Ejecuta `supabase/001_reset_all.sql` en Supabase.
+5. Redeploy.
