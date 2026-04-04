@@ -37,21 +37,18 @@ values
 alter table stations enable row level security;
 alter table reports enable row level security;
 
-drop policy if exists "public can read stations" on stations;
 create policy "public can read stations"
 on stations
 for select
 to anon, authenticated
 using (true);
 
-drop policy if exists "public can read reports" on reports;
 create policy "public can read reports"
 on reports
 for select
 to anon, authenticated
 using (true);
 
-drop policy if exists "public can insert reports" on reports;
 create policy "public can insert reports"
 on reports
 for insert

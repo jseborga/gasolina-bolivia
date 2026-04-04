@@ -1,17 +1,28 @@
-# SurtiMapa V7
+# SurtiMapa V8
 
-Versión visual mejorada del MVP:
-- lectura de `stations`
-- inserción en `reports`
-- último reporte por surtidor
-- UI más clara y moderna
+Esta versión agrega:
 
-## Variables
-Usa estas variables en EasyPanel:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- mapa real con Leaflet + OpenStreetMap
+- pines por estado
+- filtros por combustible, estado y zona
+- formulario funcional de reportes
+- lectura de último reporte por surtidor
 
-## Despliegue
-1. Sube el repo a GitHub
-2. Ejecuta `supabase/001_reset_all.sql`
-3. Haz redeploy en EasyPanel
+## Variables de entorno
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
+```
+
+## Despliegue en EasyPanel
+
+- conecta el repo
+- usa el Dockerfile incluido
+- agrega las variables de entorno
+- haz redeploy
+
+## SQL
+Ejecuta:
+
+- `supabase/001_reset_all.sql`

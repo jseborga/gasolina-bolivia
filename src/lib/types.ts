@@ -8,19 +8,16 @@ export type Station = {
   is_active: boolean;
 };
 
-export type ReportInsert = {
+export type LatestReport = {
+  id: number;
   station_id: number;
   fuel_type: "especial" | "premium" | "diesel";
   availability_status: "si_hay" | "no_hay" | "sin_dato";
   queue_status: "corta" | "media" | "larga" | "sin_dato";
   comment: string | null;
+  created_at: string;
 };
 
-export type LatestReport = {
-  station_id: number;
-  fuel_type: string;
-  availability_status: string;
-  queue_status: string;
-  comment: string | null;
-  created_at: string;
+export type StationWithLatest = Station & {
+  latestReport: LatestReport | null;
 };

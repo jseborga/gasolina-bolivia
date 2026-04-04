@@ -1,130 +1,81 @@
-import { formatRelativeDate } from "@/lib/format";
+import { StatusBadge } from "@/components/status-badge";
+import type { StationWithLatest } from "@/lib/types";
 
-type LatestReport = {
-  fuel_type: string;
-  availability_status: string;
-  queue_status: string;
-  comment: string | null;
-  created_at: string;
-};
+function fuelLabel(value?: string | null) {
+  if (!value) return "Sin dato";
+  if (value === "especial") return "Especial";
+  if (value === "premium") return "Premium";
+  if (value === "diesel") return "Diésel";
+  return value;
+}
 
-type Props = {
-  name: string;
-  zone: string;
-  address?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  latestReport?: LatestReport | null;
-};
+function queueLabel(value?: string | null) {
+  if (!value) return "Sin dato";
+  if (value === "corta") return "Fila corta";
+  if (value === "media") return "Fila media";
+  if (value === "larga") return "Fila larga";
+  if (value === "sin_dato") return "Sin dato";
+  return value;
+}
 
-function badgeForAvailability(value?: string) {
-  switch (value) {
-    case "si_hay":
-      return "bg-emerald-100 text-emerald-700";
-    case "no_hay":
-      return "bg-rose-100 text-rose-700";
-    default:
-      return "bg-amber-100 text-amber-700";
+function formatDate(value?: string | null) {
+  if (!value) return "Sin reporte";
+  try {
+    return new Date(value).toLocaleString("es-BO");
+  } catch {
+    return value;
   }
 }
 
-function labelAvailability(value?: string) {
-  switch (value) {
-    case "si_hay":
-      return "Sí hay";
-    case "no_hay":
-      return "No hay";
-    default:
-      return "Sin dato";
-  }
-}
+export function StationCard({ station }: { station: StationWithLatest }) {
+  const report = station.latestReport;
 
-function labelQueue(value?: string) {
-  switch (value) {
-    case "corta":
-      return "Corta";
-    case "media":
-      return "Media";
-    case "larga":
-      return "Larga";
-    default:
-      return "Sin dato";
-  }
-}
-
-function labelFuel(value?: string) {
-  switch (value) {
-    case "especial":
-      return "Especial";
-    case "premium":
-      return "Premium";
-    case "diesel":
-      return "Diésel";
-    default:
-      return "Sin dato";
-  }
-}
-
-export function StationCard({
-  name,
-  zone,
-  address,
-  latitude,
-  longitude,
-  latestReport,
-}: Props) {
   return (
-    <article className="card-surface p-5">
-      <div className="flex items-start justify-between gap-3">
+    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-xl font-semibold text-slate-900">{name}</h3>
-          <p className="mt-1 text-sm text-slate-600">Zona: {zone}</p>
+          <h3 className="text-xl font-bold text-slate-900">{station.name}</h3>
+          <p className="mt-1 text-sm text-slate-500">Zona: {station.zone ?? "Sin zona"}</p>
         </div>
-
-        <div
-          className={`badge ${
-            latestReport ? badgeForAvailability(latestReport.availability_status) : "bg-slate-100 text-slate-700"
-          }`}
-        >
-          {latestReport ? labelAvailability(latestReport.availability_status) : "Sin reportes"}
-        </div>
+        <StatusBadge availability={report?.availability_status ?? "sin_dato"} />
       </div>
 
-      <div className="mt-4 space-y-1 text-sm text-slate-600">
-        <p>Dirección: {address ?? "Sin dirección"}</p>
+      <div className="space-y-1 text-sm text-slate-600">
+        <p>Dirección: {station.address ?? "Sin dirección"}</p>
         <p className="text-xs text-slate-400">
-          Lat: {latitude ?? "-"} | Lng: {longitude ?? "-"}
+          Lat: {station.latitude ?? "-"} | Lng: {station.longitude ?? "-"}
         </p>
       </div>
 
-      <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-        {latestReport ? (
-          <div className="space-y-2 text-sm text-slate-700">
-            <div className="flex flex-wrap gap-2">
-              <span className="badge bg-slate-900 text-white">
-                {labelFuel(latestReport.fuel_type)}
-              </span>
-              <span className="badge bg-sky-100 text-sky-700">
-                Fila: {labelQueue(latestReport.queue_status)}
-              </span>
-            </div>
+      <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+        <div className="mb-3 flex flex-wrap gap-2">
+          <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+            {fuelLabel(report?.fuel_type)}
+          </span>
+          <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+            {queueLabel(report?.queue_status)}
+          </span>
+        </div>
 
-            <p>
-              <span className="font-medium">Último reporte:</span>{" "}
-              {formatRelativeDate(latestReport.created_at)}
-            </p>
-
-            {latestReport.comment && (
-              <p className="rounded-xl bg-white px-3 py-2 text-slate-600">
-                {latestReport.comment}
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">
-            Aún no hay reportes recientes para este surtidor.
+        <div className="space-y-1 text-sm text-slate-700">
+          <p>
+            <span className="font-semibold">Disponibilidad:</span>{" "}
+            {report?.availability_status === "si_hay"
+              ? "Sí hay"
+              : report?.availability_status === "no_hay"
+                ? "No hay"
+                : "Sin dato"}
           </p>
-        )}
+          <p>
+            <span className="font-semibold">Último reporte:</span>{" "}
+            {formatDate(report?.created_at)}
+          </p>
+          {report?.comment && (
+            <p className="rounded-xl bg-white p-3 text-slate-600">
+              {report.comment}
+            </p>
+          )}
+        </div>
       </div>
     </article>
   );

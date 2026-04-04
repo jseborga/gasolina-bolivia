@@ -2,8 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    typedRoutes: false,
-  },
+    optimizePackageImports: ["react-leaflet"]
+  }
 };
 
 export default nextConfig;
