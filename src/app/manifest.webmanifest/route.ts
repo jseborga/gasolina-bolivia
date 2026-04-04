@@ -1,0 +1,25 @@
+import { NextResponse } from "next/server";
+
+export function GET() {
+  return NextResponse.json({
+    name: "SurtiMapa",
+    short_name: "SurtiMapa",
+    description: "Estado colaborativo de surtidores y filas en La Paz",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#ffffff",
+    theme_color: "#ffffff",
+    icons: [
+      {
+        src: "/icons/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        src: "/icons/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+    ],
+  });
+}
