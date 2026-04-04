@@ -1,5 +1,5 @@
+import { getSupabaseClient } from "@/lib/supabase";
 import { StationCard } from "@/components/station-card";
-import { supabase } from "@/lib/supabase";
 
 type Station = {
   id: number;
@@ -12,9 +12,24 @@ type Station = {
 };
 
 export default async function HomePage() {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    return (
+      <main className="min-h-screen bg-slate-50">
+        <section className="mx-auto max-w-6xl px-6 py-10">
+          <h1 className="text-3xl font-bold text-slate-900">SurtiMapa</h1>
+          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+            Faltan variables de entorno de Supabase en el build o runtime.
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   const { data, error } = await supabase
     .from("stations")
-    .select("id, name, zone, address, latitude, longitude, is_active")
+    .select("*")
     .eq("is_active", true)
     .order("id", { ascending: true });
 
@@ -27,15 +42,6 @@ export default async function HomePage() {
           <h1 className="text-3xl font-bold text-slate-900">SurtiMapa</h1>
           <p className="mt-2 text-slate-600">
             Estado colaborativo de surtidores y filas en La Paz.
-          </p>
-        </div>
-
-        <div className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-900">
-            Mapa / zona de reportes
-          </h2>
-          <p className="mt-2 text-slate-600">
-            Siguiente fase: integrar mapa real, filtros y reportes en tiempo real.
           </p>
         </div>
 
