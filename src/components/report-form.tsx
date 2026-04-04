@@ -1,136 +1,181 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { getSupabaseClient } from "@/lib/supabase";
-import type { Station } from "@/lib/types";
+
+type StationOption = {
+  id: number;
+  name: string;
+  zone: string | null;
+};
 
 type Props = {
-  stations: Station[];
+  stations: StationOption[];
 };
 
 export function ReportForm({ stations }: Props) {
-  const [stationId, setStationId] = useState<string>(stations[0]?.id ? String(stations[0].id) : "");
-  const [fuelType, setFuelType] = useState<"especial" | "premium" | "diesel">("especial");
-  const [availabilityStatus, setAvailabilityStatus] = useState<"si_hay" | "no_hay" | "sin_dato">("si_hay");
-  const [queueStatus, setQueueStatus] = useState<"corta" | "media" | "larga" | "sin_dato">("media");
+  const router = useRouter();
+  const [stationId, setStationId] = useState(stations[0]?.id?.toString() ?? "");
+  const [fuelType, setFuelType] = useState("especial");
+  const [availabilityStatus, setAvailabilityStatus] = useState("si_hay");
+  const [queueStatus, setQueueStatus] = useState("media");
   const [comment, setComment] = useState("");
-  const [status, setStatus] = useState<string>("");
-  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageType, setMessageType] = useState<"success" | "error" | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setStatus("");
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true);
+    setMessage(null);
+    setMessageType(null);
 
-    const supabase = getSupabaseClient();
+    try {
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          station_id: Number(stationId),
+          fuel_type: fuelType,
+          availability_status: availabilityStatus,
+          queue_status: queueStatus,
+          comment: comment.trim() || null,
+        }),
+      });
 
-    if (!supabase) {
-      setStatus("Faltan variables de entorno de Supabase.");
-      setLoading(false);
-      return;
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo guardar el reporte.");
+      }
+
+      setMessage("Reporte guardado correctamente.");
+      setMessageType("success");
+      setComment("");
+      router.refresh();
+    } catch (error) {
+      const text =
+        error instanceof Error ? error.message : "No se pudo guardar el reporte.";
+      setMessage(text);
+      setMessageType("error");
+    } finally {
+      setIsSaving(false);
     }
-
-    const { error } = await supabase.from("reports").insert({
-      station_id: Number(stationId),
-      fuel_type: fuelType,
-      availability_status: availabilityStatus,
-      queue_status: queueStatus,
-      comment: comment.trim() ? comment.trim() : null,
-    });
-
-    if (error) {
-      setStatus(`Error al guardar: ${error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    setStatus("Reporte guardado correctamente.");
-    setComment("");
-    setLoading(false);
-    window.location.reload();
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-slate-900">Reporte rápido</h2>
-
-      <label className="grid gap-1">
-        <span className="text-sm font-medium text-slate-700">Surtidor</span>
-        <select
-          className="rounded-lg border border-slate-300 px-3 py-2"
-          value={stationId}
-          onChange={(e) => setStationId(e.target.value)}
-          required
-        >
-          {stations.map((station) => (
-            <option key={station.id} value={station.id}>
-              {station.name} - {station.zone ?? "Sin zona"}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-700">Combustible</span>
-          <select
-            className="rounded-lg border border-slate-300 px-3 py-2"
-            value={fuelType}
-            onChange={(e) => setFuelType(e.target.value as "especial" | "premium" | "diesel")}
-          >
-            <option value="especial">Especial</option>
-            <option value="premium">Premium</option>
-            <option value="diesel">Diésel</option>
-          </select>
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-700">Disponibilidad</span>
-          <select
-            className="rounded-lg border border-slate-300 px-3 py-2"
-            value={availabilityStatus}
-            onChange={(e) => setAvailabilityStatus(e.target.value as "si_hay" | "no_hay" | "sin_dato")}
-          >
-            <option value="si_hay">Sí hay</option>
-            <option value="no_hay">No hay</option>
-            <option value="sin_dato">Sin dato</option>
-          </select>
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-700">Fila</span>
-          <select
-            className="rounded-lg border border-slate-300 px-3 py-2"
-            value={queueStatus}
-            onChange={(e) => setQueueStatus(e.target.value as "corta" | "media" | "larga" | "sin_dato")}
-          >
-            <option value="corta">Corta</option>
-            <option value="media">Media</option>
-            <option value="larga">Larga</option>
-            <option value="sin_dato">Sin dato</option>
-          </select>
-        </label>
+    <form onSubmit={handleSubmit} className="card-surface p-6 lg:p-7">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Reporte rápido</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Registra disponibilidad y estado de fila en segundos.
+          </p>
+        </div>
+        <div className="badge bg-slate-900 text-white">MVP activo</div>
       </div>
 
-      <label className="grid gap-1">
-        <span className="text-sm font-medium text-slate-700">Comentario opcional</span>
-        <textarea
-          className="min-h-24 rounded-lg border border-slate-300 px-3 py-2"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="Ej.: fila avanza rápido, premium agotada, etc."
-        />
-      </label>
+      <div className="grid gap-4">
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Surtidor
+          </label>
+          <select
+            className="input-base"
+            value={stationId}
+            onChange={(event) => setStationId(event.target.value)}
+          >
+            {stations.map((station) => (
+              <option key={station.id} value={station.id}>
+                {station.name} - {station.zone ?? "Sin zona"}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <div className="flex items-center gap-3">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Combustible
+            </label>
+            <select
+              className="input-base"
+              value={fuelType}
+              onChange={(event) => setFuelType(event.target.value)}
+            >
+              <option value="especial">Especial</option>
+              <option value="premium">Premium</option>
+              <option value="diesel">Diésel</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Disponibilidad
+            </label>
+            <select
+              className="input-base"
+              value={availabilityStatus}
+              onChange={(event) => setAvailabilityStatus(event.target.value)}
+            >
+              <option value="si_hay">Sí hay</option>
+              <option value="no_hay">No hay</option>
+              <option value="sin_dato">Sin dato</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Fila
+            </label>
+            <select
+              className="input-base"
+              value={queueStatus}
+              onChange={(event) => setQueueStatus(event.target.value)}
+            >
+              <option value="corta">Corta</option>
+              <option value="media">Media</option>
+              <option value="larga">Larga</option>
+              <option value="sin_dato">Sin dato</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Comentario opcional
+          </label>
+          <textarea
+            className="input-base min-h-28 resize-y"
+            placeholder="Ej.: fila avanza rápido, premium agotada, ingreso lento, etc."
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
           type="submit"
-          disabled={loading || !stationId}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+          disabled={isSaving || !stationId}
+          className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Guardando..." : "Guardar reporte"}
+          {isSaving ? "Guardando..." : "Guardar reporte"}
         </button>
-        {status ? <span className="text-sm text-slate-600">{status}</span> : null}
+
+        {message && (
+          <div
+            className={
+              messageType === "success"
+                ? "rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+                : "rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700"
+            }
+          >
+            {message}
+          </div>
+        )}
       </div>
     </form>
   );

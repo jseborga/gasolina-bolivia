@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+
 export async function GET() {
-  return Response.json({ ok: true, service: "surtidores-app" });
+  return NextResponse.json({ ok: true, service: "surtidores-app" });
 }

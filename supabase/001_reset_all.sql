@@ -12,12 +12,6 @@ create table stations (
   created_at timestamptz not null default now()
 );
 
-insert into stations (name, zone, address, latitude, longitude, is_active)
-values
-  ('Surtidor El Volcán', 'Miraflores', 'Av. Busch, Miraflores', -16.5000, -68.1200, true),
-  ('Surtidor Sopocachi', 'Sopocachi', 'Av. 20 de Octubre', -16.5145, -68.1295, true),
-  ('Surtidor Obrajes', 'Obrajes', 'Av. Hernando Siles', -16.5230, -68.1130, true);
-
 create table reports (
   id bigint generated always as identity primary key,
   station_id bigint not null references stations(id) on delete cascade,
@@ -27,6 +21,12 @@ create table reports (
   comment text,
   created_at timestamptz not null default now()
 );
+
+insert into stations (name, zone, address, latitude, longitude, is_active)
+values
+  ('Surtidor El Volcán', 'Miraflores', 'Av. Busch, Miraflores', -16.5000, -68.1200, true),
+  ('Surtidor Sopocachi', 'Sopocachi', 'Av. 20 de Octubre', -16.5145, -68.1295, true),
+  ('Surtidor Obrajes', 'Obrajes', 'Av. Hernando Siles', -16.5230, -68.1130, true);
 
 insert into reports (station_id, fuel_type, availability_status, queue_status, comment)
 values
