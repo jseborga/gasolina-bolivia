@@ -601,8 +601,8 @@ export function StationForm({ initial, mode, stationId }: Props) {
                 type="button"
                 onClick={() =>
                   updateForm({
-                    latitude: auditSuggestion.latitude.toFixed(6),
-                    longitude: auditSuggestion.longitude.toFixed(6),
+                    latitude: auditSuggestion.latitude!.toFixed(6),
+                    longitude: auditSuggestion.longitude!.toFixed(6),
                   })
                 }
                 className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
