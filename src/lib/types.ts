@@ -9,7 +9,7 @@ export type Station = {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
-  is_active: boolean;
+  is_active?: boolean;
 };
 
 export type Report = {
@@ -22,6 +22,15 @@ export type Report = {
   created_at: string;
 };
 
+export type ReportInput = {
+  station_id: number;
+  fuel_type: FuelType;
+  availability_status: AvailabilityStatus;
+  queue_status: QueueStatus;
+  comment?: string;
+};
+
 export type StationWithLatest = Station & {
-  latestReport: Report | null;
+  latestReport?: Report | null;
+  distanceKm?: number | null;
 };
