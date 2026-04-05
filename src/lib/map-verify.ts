@@ -1,7 +1,11 @@
 import { haversineKm } from '@/lib/geo';
 import type {
   StationAddressCandidate,
+  StationAdminRow,
+  StationImportAuditItem,
+  StationImportAuditResponse,
   StationLocationVerification,
+  StationOffsetSuggestion,
 } from '@/lib/admin-types';
 
 function toNumber(value?: string | number | null) {
@@ -101,6 +105,28 @@ async function reverseGeocode(latitude: number, longitude: number) {
   return normalizeCandidate(json);
 }
 
+function buildVerificationStatus(issues: string[], addressCandidate: StationAddressCandidate | null, reverseCandidate: StationAddressCandidate | null): StationLocationVerification['status'] {
+  if (issues.length === 0 && !addressCandidate && !reverseCandidate) {
+    return 'missing';
+  }
+
+  if (
+    issues.some((issue) =>
+      issue.includes('muy separados') ||
+      issue.includes('diferencia importante') ||
+      issue.includes('No se pudo')
+    )
+  ) {
+    return 'warning';
+  }
+
+  if (issues.length > 0) {
+    return 'missing';
+  }
+
+  return 'ok';
+}
+
 export async function verifyStationLocation(params: {
   address?: string | null;
   latitude?: number | null;
@@ -156,21 +182,6 @@ export async function verifyStationLocation(params: {
     }
   }
 
-  let status: StationLocationVerification['status'] = 'ok';
-  if (issues.length === 0 && !addressCandidate && !reverseCandidate) {
-    status = 'missing';
-  } else if (
-    issues.some((issue) =>
-      issue.includes('muy separados') ||
-      issue.includes('diferencia importante') ||
-      issue.includes('No se pudo')
-    )
-  ) {
-    status = 'warning';
-  } else if (issues.length > 0) {
-    status = 'missing';
-  }
-
   return {
     addressCandidate,
     distanceKm: distanceKm != null ? Number(distanceKm.toFixed(3)) : null,
@@ -179,6 +190,111 @@ export async function verifyStationLocation(params: {
     inputLongitude,
     issues,
     reverseCandidate,
-    status,
+    status: buildVerificationStatus(issues, addressCandidate, reverseCandidate),
+  };
+}
+
+function isImportedStation(station: StationAdminRow) {
+  const note = (station.notes ?? '').toLowerCase();
+  const sourceUrl = (station.source_url ?? '').toLowerCase();
+
+  return (
+    note.includes('importada desde lote de google maps') ||
+    sourceUrl.includes('google.') ||
+    sourceUrl.includes('maps.app.goo.gl')
+  );
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function estimateOffset(items: StationImportAuditItem[]): StationOffsetSuggestion | null {
+  const candidates = items.filter(
+    (item) =>
+      item.latitudeDelta != null &&
+      item.longitudeDelta != null &&
+      item.verification.distanceKm != null &&
+      item.verification.distanceKm >= 0.08
+  );
+
+  if (candidates.length < 4) {
+    return null;
+  }
+
+  const latitudeDelta = median(
+    candidates.map((item) => item.latitudeDelta as number)
+  );
+  const longitudeDelta = median(
+    candidates.map((item) => item.longitudeDelta as number)
+  );
+
+  const residuals = candidates.map((item) => {
+    const adjustedLatitude = (item.station.latitude as number) + latitudeDelta;
+    const adjustedLongitude = (item.station.longitude as number) + longitudeDelta;
+    const addressCandidate = item.verification.addressCandidate!;
+
+    return haversineKm(
+      adjustedLatitude,
+      adjustedLongitude,
+      addressCandidate.latitude,
+      addressCandidate.longitude
+    );
+  });
+
+  const residualKm = Number(
+    (residuals.reduce((sum, value) => sum + value, 0) / residuals.length).toFixed(3)
+  );
+  const confidence: StationOffsetSuggestion['confidence'] =
+    residualKm <= 0.12 && candidates.length >= 5 ? 'high' : 'low';
+
+  return {
+    confidence,
+    latitudeDelta: Number(latitudeDelta.toFixed(6)),
+    longitudeDelta: Number(longitudeDelta.toFixed(6)),
+    residualKm,
+    sampleCount: candidates.length,
+  };
+}
+
+export async function auditImportedStations(
+  stations: StationAdminRow[],
+  maxItems = 20
+): Promise<StationImportAuditResponse> {
+  const importedStations = stations.filter(isImportedStation);
+  const limitedStations = importedStations.slice(0, maxItems);
+  const items: StationImportAuditItem[] = [];
+
+  for (const station of limitedStations) {
+    const verification = await verifyStationLocation({
+      address: station.address,
+      latitude: station.latitude,
+      longitude: station.longitude,
+    });
+
+    items.push({
+      latitudeDelta:
+        verification.addressCandidate && station.latitude != null
+          ? Number((verification.addressCandidate.latitude - station.latitude).toFixed(6))
+          : null,
+      longitudeDelta:
+        verification.addressCandidate && station.longitude != null
+          ? Number((verification.addressCandidate.longitude - station.longitude).toFixed(6))
+          : null,
+      station,
+      verification,
+    });
+  }
+
+  return {
+    importedCount: importedStations.length,
+    items,
+    offsetSuggestion: estimateOffset(items),
+    truncated: importedStations.length > limitedStations.length,
   };
 }

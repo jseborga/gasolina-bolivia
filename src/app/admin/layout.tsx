@@ -25,6 +25,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               <Link href="/admin/stations/import" className="text-slate-700 hover:text-slate-900">
                 Importar
               </Link>
+              <Link href="/admin/stations/import/review" className="text-slate-700 hover:text-slate-900">
+                Auditar
+              </Link>
               <Link href="/" className="text-slate-700 hover:text-slate-900">
                 Volver a la app
               </Link>

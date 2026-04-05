@@ -161,6 +161,12 @@ export function StationImporter() {
           >
             Nueva estación manual
           </Link>
+          <Link
+            href="/admin/stations/import/review"
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Auditar importadas
+          </Link>
         </div>
 
         <textarea

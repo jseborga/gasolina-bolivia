@@ -95,3 +95,25 @@ export type StationLocationVerification = {
   reverseCandidate: StationAddressCandidate | null;
   status: 'missing' | 'ok' | 'warning';
 };
+
+export type StationImportAuditItem = {
+  latitudeDelta: number | null;
+  longitudeDelta: number | null;
+  station: StationAdminRow;
+  verification: StationLocationVerification;
+};
+
+export type StationOffsetSuggestion = {
+  confidence: 'high' | 'low';
+  latitudeDelta: number;
+  longitudeDelta: number;
+  residualKm: number;
+  sampleCount: number;
+};
+
+export type StationImportAuditResponse = {
+  importedCount: number;
+  items: StationImportAuditItem[];
+  offsetSuggestion: StationOffsetSuggestion | null;
+  truncated: boolean;
+};
