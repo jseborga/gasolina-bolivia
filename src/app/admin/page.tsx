@@ -92,6 +92,21 @@ export default async function AdminHomePage() {
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Servicios de auxilio</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Carga talleres mecánicos, grúas, servicio mecánico móvil y venta de aditivos con contacto directo.
+          </p>
+          <div className="mt-5">
+            <Link
+              href="/admin/services"
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Abrir admin de servicios
+            </Link>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Cómo registrar una estación</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600">
             <li>Entra a “Nueva estación”.</li>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useDeferredValue, useState } from 'react';
 import type { StationAdminRow } from '@/lib/admin-types';
 
@@ -25,9 +26,12 @@ function formatUpdatedAt(value?: string) {
 }
 
 export function StationTable({ stations }: { stations: StationAdminRow[] }) {
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [pointFilter, setPointFilter] = useState<'all' | 'missing' | 'with'>('all');
   const [verificationFilter, setVerificationFilter] = useState<'all' | 'pending' | 'verified'>('all');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
   const totals = {
@@ -60,6 +64,34 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
 
     return matchesQuery && matchesPointFilter && matchesVerification;
   });
+
+  const handleDelete = async (station: StationAdminRow) => {
+    const confirmed = window.confirm(
+      `¿Eliminar la estación "${station.name}"?\n\nEsto también eliminará sus reportes asociados.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(station.id);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/admin/stations/${station.id}`, {
+        method: 'DELETE',
+      });
+
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || 'No se pudo eliminar la estación.');
+      }
+
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar la estación.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -135,6 +167,12 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
             </Link>
           </div>
         </div>
+
+        {error ? (
+          <div className="border-b border-rose-100 bg-rose-50 px-5 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
 
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -235,6 +273,15 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
                             Abrir mapa
                           </a>
                         ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(station)}
+                          disabled={deletingId === station.id}
+                          className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingId === station.id ? 'Eliminando...' : 'Eliminar'}
+                        </button>
                       </div>
                     </td>
                   </tr>

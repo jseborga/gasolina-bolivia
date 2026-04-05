@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getOptionalAdminSession } from '@/lib/admin-auth';
-import { normalizeStationAdminInput } from '@/lib/admin-stations';
-import type { StationAdminInput } from '@/lib/admin-types';
+import { normalizeServiceAdminInput } from '@/lib/admin-services';
+import type { ServiceAdminInput } from '@/lib/admin-service-types';
 import { getAdminSupabase } from '@/lib/supabase-server';
 
 export async function PUT(
@@ -15,22 +15,22 @@ export async function PUT(
 
   try {
     const { id } = await params;
-    const body = (await request.json()) as StationAdminInput;
+    const body = (await request.json()) as ServiceAdminInput;
     const supabase = getAdminSupabase();
     const payload = {
-      ...normalizeStationAdminInput(body),
+      ...normalizeServiceAdminInput(body),
       updated_at: new Date().toISOString(),
     };
 
     const { data, error } = await supabase
-      .from('stations')
+      .from('support_services')
       .update(payload)
       .eq('id', Number(id))
       .select()
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true, station: data });
+    return NextResponse.json({ ok: true, service: data });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Error inesperado' },
@@ -50,16 +50,16 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const stationId = Number(id);
-    if (!Number.isFinite(stationId)) {
-      return NextResponse.json({ error: 'ID de estación inválido.' }, { status: 400 });
+    const serviceId = Number(id);
+    if (!Number.isFinite(serviceId)) {
+      return NextResponse.json({ error: 'ID de servicio inválido.' }, { status: 400 });
     }
 
     const supabase = getAdminSupabase();
-    const { error } = await supabase.from('stations').delete().eq('id', stationId);
+    const { error } = await supabase.from('support_services').delete().eq('id', serviceId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true, deletedId: stationId });
+    return NextResponse.json({ ok: true, deletedId: serviceId });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Error inesperado' },

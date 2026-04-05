@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { ReportForm } from "@/components/report-form";
-import type { ReportInput, StationWithLatest } from "@/lib/types";
+import { SupportServiceCard } from "@/components/support-service-card";
+import { SUPPORT_SERVICE_OPTIONS, getSupportServiceLabel } from "@/lib/services";
+import type {
+  ReportInput,
+  StationWithLatest,
+  SupportService,
+  SupportServiceWithDistance,
+} from "@/lib/types";
 import {
   getFreshnessLabel,
   getSortDateValue,
@@ -19,6 +26,7 @@ const StationsMap = dynamic(() => import("@/components/stations-map"), {
 
 type DashboardProps = {
   initialStations: StationWithLatest[];
+  initialServices: SupportService[];
   reportCount?: number;
 };
 
@@ -50,8 +58,13 @@ function Select({ label, value, onChange, options }: SelectProps) {
   );
 }
 
-export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) {
+export function Dashboard({
+  initialStations,
+  initialServices,
+  reportCount = 0,
+}: DashboardProps) {
   const [stations, setStations] = useState<StationWithLatest[]>(initialStations);
+  const [services, setServices] = useState<SupportService[]>(initialServices);
   const [selectedStationId, setSelectedStationId] = useState<number | null>(
     initialStations[0]?.id ?? null
   );
@@ -59,6 +72,7 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
   const [fuelFilter, setFuelFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [zoneFilter, setZoneFilter] = useState<string>("all");
+  const [serviceCategoryFilter, setServiceCategoryFilter] = useState<string>("all");
   const [onlyRecent, setOnlyRecent] = useState<boolean>(false);
   const [sortMode, setSortMode] = useState<SortMode>("recent");
 
@@ -74,20 +88,29 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
     }
   }, [initialStations, selectedStationId]);
 
+  useEffect(() => {
+    setServices(initialServices);
+  }, [initialServices]);
+
   const zones = useMemo(() => {
     const unique = Array.from(
       new Set(
-        initialStations
-          .map((station) => station.zone?.trim())
+        [...initialStations.map((station) => station.zone?.trim()), ...initialServices.map((service) => service.zone?.trim())]
           .filter((zone): zone is string => Boolean(zone))
       )
     ).sort((a, b) => a.localeCompare(b, "es"));
+
     return unique;
-  }, [initialStations]);
+  }, [initialStations, initialServices]);
 
   const zoneOptions: [string, string][] = [
     ["all", "Todas"],
-    ...zones.map((z) => [z, z] as [string, string]),
+    ...zones.map((zone) => [zone, zone] as [string, string]),
+  ];
+
+  const serviceCategoryOptions: [string, string][] = [
+    ["all", "Todos"],
+    ...SUPPORT_SERVICE_OPTIONS.map((option) => [option.value, option.label] as [string, string]),
   ];
 
   const stationsWithDistance = useMemo(() => {
@@ -113,6 +136,30 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
       };
     });
   }, [stations, userLocation]);
+
+  const servicesWithDistance = useMemo<SupportServiceWithDistance[]>(() => {
+    return services.map((service) => {
+      let distanceKm: number | null = null;
+
+      if (
+        userLocation &&
+        typeof service.latitude === "number" &&
+        typeof service.longitude === "number"
+      ) {
+        distanceKm = haversineKm(
+          userLocation.lat,
+          userLocation.lng,
+          service.latitude,
+          service.longitude
+        );
+      }
+
+      return {
+        ...service,
+        distanceKm,
+      };
+    });
+  }, [services, userLocation]);
 
   const filteredStations = useMemo(() => {
     const now = Date.now();
@@ -148,7 +195,7 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
       return true;
     });
 
-    const sorted = [...filtered].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       if (sortMode === "distance") {
         const aDistance = a.distanceKm ?? Number.POSITIVE_INFINITY;
         const bDistance = b.distanceKm ?? Number.POSITIVE_INFINITY;
@@ -180,12 +227,41 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
         getSortDateValue(a.latestReport?.created_at)
       );
     });
-
-    return sorted;
   }, [stationsWithDistance, zoneFilter, fuelFilter, statusFilter, onlyRecent, sortMode]);
 
+  const filteredServices = useMemo(() => {
+    const filtered = servicesWithDistance.filter((service) => {
+      if (zoneFilter !== "all" && (service.zone ?? "") !== zoneFilter) {
+        return false;
+      }
+
+      if (serviceCategoryFilter !== "all" && service.category !== serviceCategoryFilter) {
+        return false;
+      }
+
+      return service.is_active !== false;
+    });
+
+    return [...filtered].sort((a, b) => {
+      const aDistance = a.distanceKm ?? Number.POSITIVE_INFINITY;
+      const bDistance = b.distanceKm ?? Number.POSITIVE_INFINITY;
+      if (aDistance !== bDistance) return aDistance - bDistance;
+
+      const categoryCompare = getSupportServiceLabel(a.category).localeCompare(
+        getSupportServiceLabel(b.category),
+        "es"
+      );
+      if (categoryCompare !== 0) return categoryCompare;
+
+      return a.name.localeCompare(b.name, "es");
+    });
+  }, [servicesWithDistance, zoneFilter, serviceCategoryFilter]);
+
   const selectedStation = useMemo(
-    () => filteredStations.find((station) => station.id === selectedStationId) ?? filteredStations[0] ?? null,
+    () =>
+      filteredStations.find((station) => station.id === selectedStationId) ??
+      filteredStations[0] ??
+      null,
     [filteredStations, selectedStationId]
   );
 
@@ -231,23 +307,27 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm text-slate-500">Surtidores</div>
           <div className="mt-2 text-3xl font-bold text-slate-900">{stations.length}</div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Servicios de auxilio</div>
+          <div className="mt-2 text-3xl font-bold text-slate-900">{services.length}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm text-slate-500">Reportes</div>
           <div className="mt-2 text-3xl font-bold text-slate-900">{reportCount}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Ubicación</div>
+          <div className="text-sm text-slate-500">Ubicacion</div>
           <div className="mt-2 text-sm font-medium text-slate-900">
             {locationState === "granted"
               ? "Activa"
               : locationState === "loading"
-              ? "Buscando..."
-              : "No activada"}
+                ? "Buscando..."
+                : "No activada"}
           </div>
         </div>
       </section>
@@ -257,9 +337,12 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
           <div className="border-b border-slate-100 px-5 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Mapa de surtidores</h2>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Mapa de surtidores y auxilio
+                </h2>
                 <p className="text-sm text-slate-500">
-                  Visualiza surtidores, último estado reportado y ubicación relativa.
+                  Visualiza surtidores, talleres, gruas, servicio mecanico y venta de
+                  aditivos.
                 </p>
               </div>
 
@@ -268,20 +351,25 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
                 onClick={handleUseMyLocation}
                 className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
-                {locationState === "loading" ? "Ubicando..." : "Usar mi ubicación"}
+                {locationState === "loading" ? "Ubicando..." : "Usar mi ubicacion"}
               </button>
             </div>
 
             <div className="mt-3 text-xs text-slate-500">
-              {locationState === "granted" && "Ubicación activada. Se muestran distancias aproximadas."}
-              {locationState === "denied" && "Permiso de ubicación denegado. Puedes seguir usando la app."}
-              {locationState === "error" && "Tu navegador no soporta geolocalización o hubo un error."}
-              {locationState === "idle" && "La ubicación es opcional y no se guarda en la base de datos."}
+              {locationState === "granted" &&
+                "Ubicacion activada. Se muestran distancias aproximadas."}
+              {locationState === "denied" &&
+                "Permiso de ubicacion denegado. Puedes seguir usando la app."}
+              {locationState === "error" &&
+                "Tu navegador no soporta geolocalizacion o hubo un error."}
+              {locationState === "idle" &&
+                "La ubicacion es opcional y no se guarda en la base de datos."}
             </div>
           </div>
 
           <div className="h-[420px]">
             <StationsMap
+              services={filteredServices}
               stations={filteredStations}
               selectedStationId={selectedStation?.id ?? null}
               onSelectStation={(id) => setSelectedStationId(id)}
@@ -291,7 +379,7 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Reporte rápido</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Reporte rapido</h2>
           <p className="mt-1 text-sm text-slate-500">
             Registra disponibilidad, fila y comentario del surtidor seleccionado.
           </p>
@@ -316,7 +404,7 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
               ["all", "Todos"],
               ["especial", "Especial"],
               ["premium", "Premium"],
-              ["diesel", "Diésel"],
+              ["diesel", "Diesel"],
             ]}
           />
 
@@ -326,26 +414,28 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
             onChange={setStatusFilter}
             options={[
               ["all", "Todos"],
-              ["si_hay", "Sí hay"],
+              ["si_hay", "Si hay"],
               ["no_hay", "No hay"],
               ["sin_dato", "Sin dato"],
             ]}
           />
 
+          <Select label="Zona" value={zoneFilter} onChange={setZoneFilter} options={zoneOptions} />
+
           <Select
-            label="Zona"
-            value={zoneFilter}
-            onChange={setZoneFilter}
-            options={zoneOptions}
+            label="Tipo de servicio"
+            value={serviceCategoryFilter}
+            onChange={setServiceCategoryFilter}
+            options={serviceCategoryOptions}
           />
 
           <Select
-            label="Ordenar por"
+            label="Ordenar surtidores"
             value={sortMode}
             onChange={(value) => setSortMode(value as SortMode)}
             options={[
-              ["recent", "Más reciente"],
-              ["distance", "Más cercano"],
+              ["recent", "Mas reciente"],
+              ["distance", "Mas cercano"],
               ["availability", "Disponibilidad"],
               ["queue", "Fila"],
             ]}
@@ -362,78 +452,129 @@ export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) 
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filteredStations.map((station) => {
-          const latest = station.latestReport;
-          const freshness = getFreshnessLabel(latest?.created_at);
-          const isSelected = selectedStation?.id === station.id;
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Auxilio y servicios</h2>
+            <p className="text-sm text-slate-500">
+              Contacta talleres, gruas o soporte mecanico directo desde la app.
+            </p>
+          </div>
+          <div className="text-sm text-slate-500">{filteredServices.length} resultados</div>
+        </div>
 
-          return (
-            <button
-              key={station.id}
-              type="button"
-              onClick={() => setSelectedStationId(station.id)}
-              className={`rounded-3xl border p-5 text-left shadow-sm transition ${
-                isSelected
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold">{station.name}</h3>
-                  <p className={`text-sm ${isSelected ? "text-slate-300" : "text-slate-500"}`}>
-                    {station.zone || "Sin zona"}
-                  </p>
-                </div>
+        {filteredServices.length > 0 ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filteredServices.map((service) => (
+              <SupportServiceCard key={service.id} service={service} />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-dashed border-slate-200 p-5 text-sm text-slate-500">
+            No hay servicios de auxilio para los filtros seleccionados.
+          </div>
+        )}
+      </section>
 
-                {station.distanceKm != null && (
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      isSelected ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {station.distanceKm.toFixed(1)} km
-                  </span>
-                )}
-              </div>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Surtidores</h2>
+          <p className="text-sm text-slate-500">
+            Selecciona un surtidor para reportar o revisar su ultimo estado.
+          </p>
+        </div>
 
-              <div className="mt-4 space-y-2 text-sm">
-                <div>
-                  <span className={isSelected ? "text-slate-300" : "text-slate-500"}>Dirección: </span>
-                  <span>{station.address || "Sin dirección"}</span>
-                </div>
+        {filteredStations.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filteredStations.map((station) => {
+              const latest = station.latestReport;
+              const freshness = getFreshnessLabel(latest?.created_at);
+              const isSelected = selectedStation?.id === station.id;
 
-                <div>
-                  <span className={isSelected ? "text-slate-300" : "text-slate-500"}>Combustible: </span>
-                  <span>{latest?.fuel_type ?? "Sin dato"}</span>
-                </div>
+              return (
+                <button
+                  key={station.id}
+                  type="button"
+                  onClick={() => setSelectedStationId(station.id)}
+                  className={`rounded-3xl border p-5 text-left shadow-sm transition ${
+                    isSelected
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold">{station.name}</h3>
+                      <p className={`text-sm ${isSelected ? "text-slate-300" : "text-slate-500"}`}>
+                        {station.zone || "Sin zona"}
+                      </p>
+                    </div>
 
-                <div>
-                  <span className={isSelected ? "text-slate-300" : "text-slate-500"}>Disponibilidad: </span>
-                  <span>{latest?.availability_status ?? "sin_dato"}</span>
-                </div>
-
-                <div>
-                  <span className={isSelected ? "text-slate-300" : "text-slate-500"}>Fila: </span>
-                  <span>{latest?.queue_status ?? "sin_dato"}</span>
-                </div>
-
-                <div>
-                  <span className={isSelected ? "text-slate-300" : "text-slate-500"}>Actualización: </span>
-                  <span>{freshness}</span>
-                </div>
-
-                {latest?.comment && (
-                  <div>
-                    <span className={isSelected ? "text-slate-300" : "text-slate-500"}>Comentario: </span>
-                    <span>{latest.comment}</span>
+                    {station.distanceKm != null && (
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                          isSelected ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {station.distanceKm.toFixed(1)} km
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-            </button>
-          );
-        })}
+
+                  <div className="mt-4 space-y-2 text-sm">
+                    <div>
+                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
+                        Direccion:{" "}
+                      </span>
+                      <span>{station.address || "Sin direccion"}</span>
+                    </div>
+
+                    <div>
+                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
+                        Combustible:{" "}
+                      </span>
+                      <span>{latest?.fuel_type ?? "Sin dato"}</span>
+                    </div>
+
+                    <div>
+                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
+                        Disponibilidad:{" "}
+                      </span>
+                      <span>{latest?.availability_status ?? "sin_dato"}</span>
+                    </div>
+
+                    <div>
+                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
+                        Fila:{" "}
+                      </span>
+                      <span>{latest?.queue_status ?? "sin_dato"}</span>
+                    </div>
+
+                    <div>
+                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
+                        Actualizacion:{" "}
+                      </span>
+                      <span>{freshness}</span>
+                    </div>
+
+                    {latest?.comment && (
+                      <div>
+                        <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
+                          Comentario:{" "}
+                        </span>
+                        <span>{latest.comment}</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 p-5 text-sm text-slate-500">
+            No hay surtidores que coincidan con los filtros seleccionados.
+          </div>
+        )}
       </section>
     </div>
   );

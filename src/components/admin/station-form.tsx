@@ -89,6 +89,7 @@ export function StationForm({ initial, mode, stationId }: Props) {
     maps_input: "",
   });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verification, setVerification] = useState<StationLocationVerification | null>(null);
@@ -292,6 +293,34 @@ export function StationForm({ initial, mode, stationId }: Props) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (mode !== "edit" || !stationId) return;
+
+    const confirmed = window.confirm(
+      `¿Eliminar la estación "${form.name.trim() || "sin nombre"}"?\n\nEsto también eliminará sus reportes asociados.`
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+    clearFeedback();
+
+    try {
+      const res = await fetch(`/api/admin/stations/${stationId}`, {
+        method: "DELETE",
+      });
+
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "No se pudo eliminar la estacion");
+
+      router.push("/admin/stations");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado");
+      setDeleting(false);
     }
   };
 
@@ -524,9 +553,19 @@ export function StationForm({ initial, mode, stationId }: Props) {
       </label>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button disabled={saving} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">
+        <button disabled={saving || deleting} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">
           {saving ? "Guardando..." : mode === "create" ? "Crear estacion" : "Guardar cambios"}
         </button>
+        {mode === "edit" ? (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving || deleting}
+            className="rounded-xl border border-rose-300 px-5 py-3 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+          >
+            {deleting ? "Eliminando..." : "Eliminar estacion"}
+          </button>
+        ) : null}
         {message ? <span className="text-sm text-emerald-700">{message}</span> : null}
         {error ? <span className="text-sm text-red-700">{error}</span> : null}
       </div>

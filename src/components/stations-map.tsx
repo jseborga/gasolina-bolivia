@@ -1,11 +1,18 @@
 "use client";
 
-import { MapContainer, Marker, Popup, TileLayer, CircleMarker } from "react-leaflet";
+import { CircleMarker, MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import type { StationWithLatest } from "@/lib/types";
+import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
+import { getSupportServiceLabel } from "@/lib/services";
+import type {
+  StationWithLatest,
+  SupportServiceCategory,
+  SupportServiceWithDistance,
+} from "@/lib/types";
 
 type StationsMapProps = {
+  services: SupportServiceWithDistance[];
   stations: (StationWithLatest & { distanceKm?: number | null })[];
   selectedStationId: number | null;
   onSelectStation: (id: number) => void;
@@ -15,16 +22,30 @@ type StationsMapProps = {
 function getMarkerColor(status?: string | null) {
   switch (status) {
     case "si_hay":
-      return "green";
+      return "#16a34a";
     case "no_hay":
-      return "red";
+      return "#dc2626";
     case "sin_dato":
     default:
-      return "orange";
+      return "#f59e0b";
   }
 }
 
-function createMarkerIcon(color: string) {
+function getServiceMarkerMeta(category: SupportServiceCategory) {
+  switch (category) {
+    case "taller_mecanico":
+      return { color: "#d97706", label: "T" };
+    case "grua":
+      return { color: "#e11d48", label: "G" };
+    case "servicio_mecanico":
+      return { color: "#0284c7", label: "S" };
+    case "aditivos":
+    default:
+      return { color: "#059669", label: "A" };
+  }
+}
+
+function createStationMarkerIcon(color: string) {
   return L.divIcon({
     className: "",
     html: `
@@ -42,7 +63,34 @@ function createMarkerIcon(color: string) {
   });
 }
 
+function createServiceMarkerIcon(category: SupportServiceCategory) {
+  const { color, label } = getServiceMarkerMeta(category);
+
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="
+        width:22px;
+        height:22px;
+        border-radius:6px;
+        background:${color};
+        border:2px solid white;
+        box-shadow:0 0 0 1px rgba(0,0,0,0.2);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        color:white;
+        font-size:11px;
+        font-weight:700;
+      ">${label}</div>
+    `,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+}
+
 export default function StationsMap({
+  services,
   stations,
   selectedStationId,
   onSelectStation,
@@ -56,7 +104,7 @@ export default function StationsMap({
     <MapContainer
       center={defaultCenter}
       zoom={12}
-      scrollWheelZoom={true}
+      scrollWheelZoom
       style={{ height: "100%", width: "100%" }}
     >
       <TileLayer
@@ -70,27 +118,83 @@ export default function StationsMap({
           radius={8}
           pathOptions={{ color: "#2563eb", fillColor: "#2563eb", fillOpacity: 0.9 }}
         >
-          <Popup>Tu ubicación</Popup>
+          <Popup>Tu ubicacion</Popup>
         </CircleMarker>
       )}
+
+      {services
+        .filter(
+          (service) =>
+            typeof service.latitude === "number" && typeof service.longitude === "number"
+        )
+        .map((service) => {
+          const phoneHref = buildTelHref(service.phone ?? service.whatsapp_number);
+          const whatsappHref = buildWhatsAppHref(service.whatsapp_number ?? service.phone);
+
+          return (
+            <Marker
+              key={`service-${service.id}`}
+              position={[service.latitude as number, service.longitude as number]}
+              icon={createServiceMarkerIcon(service.category)}
+            >
+              <Popup>
+                <div className="min-w-[220px] text-sm text-slate-800">
+                  <div className="font-semibold">{service.name}</div>
+                  <div>{getSupportServiceLabel(service.category)}</div>
+                  <div>{[service.zone, service.city].filter(Boolean).join(" | ") || "Sin zona"}</div>
+                  <div>{service.address || "Sin direccion"}</div>
+                  {service.description && <div className="mt-2">{service.description}</div>}
+                  {(service.phone || service.whatsapp_number) && (
+                    <div className="mt-2">
+                      Contacto: {formatContactLabel(service.phone ?? service.whatsapp_number)}
+                    </div>
+                  )}
+                  {service.distanceKm != null && (
+                    <div className="mt-1">Distancia: {service.distanceKm.toFixed(1)} km</div>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {whatsappHref && (
+                      <a
+                        href={whatsappHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
+                      >
+                        WhatsApp
+                      </a>
+                    )}
+                    {phoneHref && (
+                      <a
+                        href={phoneHref}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                      >
+                        Llamar
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
 
       {stations
         .filter(
           (station) =>
-            typeof station.latitude === "number" &&
-            typeof station.longitude === "number"
+            typeof station.latitude === "number" && typeof station.longitude === "number"
         )
         .map((station) => {
-          const color = getMarkerColor(station.latestReport?.availability_status);
-          const icon = createMarkerIcon(
-            station.id === selectedStationId ? "#111827" : color
-          );
+          const color =
+            station.id === selectedStationId
+              ? "#111827"
+              : getMarkerColor(station.latestReport?.availability_status);
 
           return (
             <Marker
-              key={station.id}
+              key={`station-${station.id}`}
               position={[station.latitude as number, station.longitude as number]}
-              icon={icon}
+              icon={createStationMarkerIcon(color)}
               eventHandlers={{
                 click: () => onSelectStation(station.id),
               }}

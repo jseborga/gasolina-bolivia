@@ -1,6 +1,6 @@
 import { Dashboard } from "@/components/dashboard";
 import { getSupabaseClient } from "@/lib/supabase";
-import { Report, Station, StationWithLatest } from "@/lib/types";
+import { Report, Station, StationWithLatest, SupportService } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,17 +17,27 @@ export default async function HomePage() {
     );
   }
 
-  const [{ data: stationsData, error: stationsError }, { data: reportsData, error: reportsError }] =
-    await Promise.all([
-      supabase.from("stations").select("*").eq("is_active", true).order("name"),
-      supabase.from("reports").select("*").order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: stationsData, error: stationsError },
+    { data: reportsData, error: reportsError },
+    { data: servicesData, error: servicesError },
+  ] = await Promise.all([
+    supabase.from("stations").select("*").eq("is_active", true).order("name"),
+    supabase.from("reports").select("*").order("created_at", { ascending: false }),
+    supabase
+      .from("support_services")
+      .select("*")
+      .eq("is_active", true)
+      .order("category")
+      .order("name"),
+  ]);
 
-  if (stationsError || reportsError) {
+  if (stationsError || reportsError || servicesError) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
-          Error al leer Supabase. {stationsError?.message || reportsError?.message}
+          Error al leer Supabase.{" "}
+          {stationsError?.message || reportsError?.message || servicesError?.message}
         </div>
       </main>
     );
@@ -35,6 +45,7 @@ export default async function HomePage() {
 
   const stations = (stationsData ?? []) as Station[];
   const reports = (reportsData ?? []) as Report[];
+  const services = (servicesData ?? []) as SupportService[];
 
   const latestByStation = new Map<number, Report>();
   for (const report of reports) {
@@ -46,5 +57,11 @@ export default async function HomePage() {
     latestReport: latestByStation.get(station.id) ?? null,
   }));
 
-  return <Dashboard initialStations={stationsWithLatest} reportCount={reports.length} />;
+  return (
+    <Dashboard
+      initialStations={stationsWithLatest}
+      initialServices={services}
+      reportCount={reports.length}
+    />
+  );
 }
