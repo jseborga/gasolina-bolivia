@@ -87,7 +87,13 @@ export function verifyAdminSessionToken(token?: string | null): AdminSession | n
   const [encodedPayload, signature] = token.split('.');
   if (!encodedPayload || !signature) return null;
 
-  const expectedSignature = sign(encodedPayload);
+  let expectedSignature = '';
+  try {
+    expectedSignature = sign(encodedPayload);
+  } catch {
+    return null;
+  }
+
   const signatureBuffer = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expectedSignature);
 

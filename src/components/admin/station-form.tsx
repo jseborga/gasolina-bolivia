@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { parseMapsInput } from "@/lib/google-maps";
+import { parseMapsInput, type ParsedMapsInput } from "@/lib/google-maps";
 import type { StationAdminInput, StationAdminRow } from "@/lib/admin-types";
 import { StationLocationPicker } from "@/components/admin/station-location-picker";
 
@@ -13,6 +13,29 @@ type Props = {
 
 function fieldClass() {
   return "rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-500";
+}
+
+function buildResolveMessage(parsed: ParsedMapsInput) {
+  if (parsed.latitude != null && parsed.longitude != null) {
+    switch (parsed.matchSource) {
+      case "redirect":
+        return "Coordenadas extraídas desde el enlace resuelto.";
+      case "html":
+        return "Coordenadas detectadas dentro de la página de Google Maps.";
+      default:
+        return "Coordenadas detectadas y cargadas en el formulario.";
+    }
+  }
+
+  if (parsed.sourceUrl) {
+    return "Se guardó el enlace, pero no se pudieron obtener coordenadas automáticamente.";
+  }
+
+  if (parsed.address) {
+    return "Se cargó la dirección. Si falta el punto, ajústalo manualmente en el mapa.";
+  }
+
+  return "No se encontró información útil en el texto pegado.";
 }
 
 export function StationForm({ initial, mode, stationId }: Props) {
@@ -35,20 +58,78 @@ export function StationForm({ initial, mode, stationId }: Props) {
     maps_input: "",
   });
   const [saving, setSaving] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const parsedPreview = useMemo(() => parseMapsInput(form.maps_input), [form.maps_input]);
 
-  const applyMapsInput = () => {
-    const parsed = parseMapsInput(form.maps_input);
+  const applyParsedToForm = (parsed: ParsedMapsInput) => {
     setForm((prev) => ({
       ...prev,
       address: parsed.address || prev.address,
-      latitude: parsed.latitude != null ? String(parsed.latitude) : prev.latitude,
-      longitude: parsed.longitude != null ? String(parsed.longitude) : prev.longitude,
+      latitude: parsed.latitude != null ? parsed.latitude.toFixed(6) : prev.latitude,
+      longitude: parsed.longitude != null ? parsed.longitude.toFixed(6) : prev.longitude,
       source_url: parsed.sourceUrl || prev.source_url,
     }));
+  };
+
+  const applyMapsInput = async () => {
+    const input = form.maps_input.trim();
+    if (!input) {
+      setError("Pega una URL, dirección o coordenadas.");
+      setMessage(null);
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+
+    const localParsed = parseMapsInput(input);
+    let finalParsed = localParsed;
+    let fallbackMessage: string | null = null;
+
+    if (localParsed.sourceUrl) {
+      setResolving(true);
+      try {
+        const res = await fetch("/api/admin/maps/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input }),
+        });
+
+        const json = (await res.json()) as ParsedMapsInput & { error?: string };
+        if (!res.ok) {
+          throw new Error(json.error || "No se pudo resolver el enlace.");
+        }
+
+        finalParsed = json;
+      } catch (err) {
+        if (localParsed.latitude != null && localParsed.longitude != null) {
+          fallbackMessage =
+            "Se usaron las coordenadas detectadas localmente, pero no se pudo resolver el enlace completo.";
+        } else {
+          setError(err instanceof Error ? err.message : "No se pudo resolver el enlace.");
+          setResolving(false);
+          return;
+        }
+      } finally {
+        setResolving(false);
+      }
+    }
+
+    applyParsedToForm(finalParsed);
+
+    if (fallbackMessage) {
+      setMessage(fallbackMessage);
+      return;
+    }
+
+    if (finalParsed.latitude == null || finalParsed.longitude == null) {
+      setError("No se encontraron coordenadas automáticas. Usa el mapa para fijar el punto.");
+    }
+
+    setMessage(buildResolveMessage(finalParsed));
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -57,13 +138,34 @@ export function StationForm({ initial, mode, stationId }: Props) {
     setError(null);
     setMessage(null);
 
+    const latitudeValue = form.latitude.trim();
+    const longitudeValue = form.longitude.trim();
+
+    if ((latitudeValue && !longitudeValue) || (!latitudeValue && longitudeValue)) {
+      setSaving(false);
+      setError("Debes completar latitud y longitud juntas.");
+      return;
+    }
+
+    const latitude = latitudeValue ? Number(latitudeValue) : null;
+    const longitude = longitudeValue ? Number(longitudeValue) : null;
+
+    if (
+      (latitudeValue && !Number.isFinite(latitude ?? Number.NaN)) ||
+      (longitudeValue && !Number.isFinite(longitude ?? Number.NaN))
+    ) {
+      setSaving(false);
+      setError("Las coordenadas deben ser numéricas.");
+      return;
+    }
+
     const payload: StationAdminInput = {
       name: form.name.trim(),
       zone: form.zone.trim() || undefined,
       city: form.city.trim() || undefined,
       address: form.address.trim() || undefined,
-      latitude: form.latitude ? Number(form.latitude) : null,
-      longitude: form.longitude ? Number(form.longitude) : null,
+      latitude,
+      longitude,
       fuel_especial: form.fuel_especial,
       fuel_premium: form.fuel_premium,
       fuel_diesel: form.fuel_diesel,
@@ -90,7 +192,7 @@ export function StationForm({ initial, mode, stationId }: Props) {
 
       setMessage(mode === "create" ? "Estación creada." : "Estación actualizada.");
       if (mode === "create") {
-        setForm((prev) => ({ ...prev, notes: "", maps_input: "" }));
+        setForm((prev) => ({ ...prev, maps_input: "", notes: "" }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
@@ -106,7 +208,9 @@ export function StationForm({ initial, mode, stationId }: Props) {
           {mode === "create" ? "Nueva estación" : "Editar estación"}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Puedes pegar una dirección, coordenadas o una URL de Google Maps. Si la URL incluye coordenadas, el sistema las extrae automáticamente.
+          Puedes pegar una dirección, coordenadas o una URL de Google Maps. Si
+          la URL es corta o redirige, el sistema intenta resolverla antes de
+          completar el punto.
         </p>
       </div>
 
@@ -135,8 +239,13 @@ export function StationForm({ initial, mode, stationId }: Props) {
           <textarea className={fieldClass()} value={form.maps_input} onChange={(e) => setForm({ ...form, maps_input: e.target.value })} rows={3} />
         </label>
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={applyMapsInput} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-            Analizar y completar
+          <button
+            type="button"
+            onClick={applyMapsInput}
+            disabled={resolving}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+          >
+            {resolving ? "Resolviendo enlace..." : "Analizar y completar"}
           </button>
           <span className="text-xs text-slate-500">
             Detectado: lat {parsedPreview.latitude ?? "-"} / lng {parsedPreview.longitude ?? "-"}
