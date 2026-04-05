@@ -45,10 +45,42 @@ export function getQueueLabel(queue?: QueueStatus | null): string {
   }
 }
 
-/* Alias para compatibilidad con otros componentes */
+/* Alias para compatibilidad */
 export const formatFuelType = getFuelLabel;
 export const formatAvailability = getAvailabilityLabel;
 export const formatQueue = getQueueLabel;
+
+export function formatRelativeTime(createdAt?: string | null): string {
+  if (!createdAt) return "Sin reporte";
+
+  const time = new Date(createdAt).getTime();
+  if (Number.isNaN(time)) return "Fecha inválida";
+
+  const diffMs = Date.now() - time;
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMin < 1) return "Hace menos de 1 min";
+  if (diffMin < 60) return `Hace ${diffMin} min`;
+
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `Hace ${diffHours} h`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `Hace ${diffDays} d`;
+}
+
+export function getFreshness(createdAt?: string | null): "fresh" | "aging" | "stale" | "none" {
+  if (!createdAt) return "none";
+
+  const time = new Date(createdAt).getTime();
+  if (Number.isNaN(time)) return "none";
+
+  const diffMin = Math.floor((Date.now() - time) / 60000);
+
+  if (diffMin <= 30) return "fresh";
+  if (diffMin <= 90) return "aging";
+  return "stale";
+}
 
 export function isRecentReport(createdAt?: string | null, maxMinutes = 90): boolean {
   if (!createdAt) return false;
