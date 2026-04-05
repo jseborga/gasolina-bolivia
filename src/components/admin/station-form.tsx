@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { parseMapsInput } from "@/lib/google-maps";
 import type { StationAdminInput, StationAdminRow } from "@/lib/admin-types";
+import { StationLocationPicker } from "@/components/admin/station-location-picker";
 
 type Props = {
   initial?: Partial<StationAdminRow>;
@@ -75,11 +76,14 @@ export function StationForm({ initial, mode, stationId }: Props) {
     };
 
     try {
-      const res = await fetch(mode === "create" ? "/api/admin/stations" : `/api/admin/stations/${stationId}`, {
-        method: mode === "create" ? "POST" : "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        mode === "create" ? "/api/admin/stations" : `/api/admin/stations/${stationId}`,
+        {
+          method: mode === "create" ? "POST" : "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "No se pudo guardar");
@@ -155,6 +159,18 @@ export function StationForm({ initial, mode, stationId }: Props) {
           <input className={fieldClass()} value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
         </label>
       </div>
+
+      <StationLocationPicker
+        latitude={form.latitude}
+        longitude={form.longitude}
+        onChange={({ latitude, longitude }) =>
+          setForm((prev) => ({
+            ...prev,
+            latitude,
+            longitude,
+          }))
+        }
+      />
 
       <label className="flex flex-col gap-2 text-sm">
         <span className="font-medium text-slate-700">URL de origen</span>
