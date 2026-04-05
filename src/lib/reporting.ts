@@ -1,42 +1,77 @@
-import { AvailabilityStatus, QueueStatus, Report } from "./types";
+import type {
+  AvailabilityStatus,
+  FuelType,
+  QueueStatus,
+  Report,
+  StationWithLatest,
+} from "@/lib/types";
 
-export function formatAvailability(status: AvailabilityStatus) {
-  switch (status) {
-    case "si_hay": return "Sí hay";
-    case "no_hay": return "No hay";
-    default: return "Sin dato";
-  }
-}
-
-export function formatQueue(status: QueueStatus) {
-  switch (status) {
-    case "corta": return "Fila corta";
-    case "media": return "Fila media";
-    case "larga": return "Fila larga";
-    default: return "Sin dato";
-  }
-}
-
-export function formatFuelType(fuel: Report["fuel_type"]) {
+export function getFuelLabel(fuel?: FuelType | null): string {
   switch (fuel) {
-    case "diesel": return "Diésel";
-    case "premium": return "Premium";
-    default: return "Especial";
+    case "especial":
+      return "Especial";
+    case "premium":
+      return "Premium";
+    case "diesel":
+      return "Diésel";
+    default:
+      return "Sin dato";
   }
 }
 
-export function getFreshness(reportDate: string) {
-  const diffMinutes = (Date.now() - new Date(reportDate).getTime()) / 60000;
-  if (diffMinutes <= 30) return { label: "Reciente", className: "bg-emerald-100 text-emerald-700" };
-  if (diffMinutes <= 90) return { label: "Todavía útil", className: "bg-amber-100 text-amber-700" };
-  return { label: "Desactualizado", className: "bg-slate-200 text-slate-600" };
+export function getAvailabilityLabel(status?: AvailabilityStatus | null): string {
+  switch (status) {
+    case "si_hay":
+      return "Sí hay";
+    case "no_hay":
+      return "No hay";
+    case "sin_dato":
+    default:
+      return "Sin dato";
+  }
 }
 
-export function formatRelativeTime(reportDate: string) {
-  const diffMinutes = Math.max(0, Math.floor((Date.now() - new Date(reportDate).getTime()) / 60000));
-  if (diffMinutes < 1) return "Hace instantes";
-  if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `Hace ${diffHours} h`;
-  return `Hace ${Math.floor(diffHours / 24)} d`;
+export function getQueueLabel(queue?: QueueStatus | null): string {
+  switch (queue) {
+    case "corta":
+      return "Fila corta";
+    case "media":
+      return "Fila media";
+    case "larga":
+      return "Fila larga";
+    case "sin_dato":
+    default:
+      return "Sin dato";
+  }
+}
+
+export function isRecentReport(createdAt?: string | null, maxMinutes = 90): boolean {
+  if (!createdAt) return false;
+  const time = new Date(createdAt).getTime();
+  if (Number.isNaN(time)) return false;
+  return Date.now() - time <= maxMinutes * 60 * 1000;
+}
+
+export function getLatestReportForStation(
+  stationId: number,
+  reports: Report[]
+): Report | null {
+  const filtered = reports
+    .filter((report) => report.station_id === stationId)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+  return filtered[0] ?? null;
+}
+
+export function attachLatestReports(
+  stations: StationWithLatest[],
+  reports: Report[]
+): StationWithLatest[] {
+  return stations.map((station) => ({
+    ...station,
+    latestReport: getLatestReportForStation(station.id, reports),
+  }));
 }
