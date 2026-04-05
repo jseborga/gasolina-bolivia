@@ -45,6 +45,11 @@ export function getQueueLabel(queue?: QueueStatus | null): string {
   }
 }
 
+/* Alias para compatibilidad con otros componentes */
+export const formatFuelType = getFuelLabel;
+export const formatAvailability = getAvailabilityLabel;
+export const formatQueue = getQueueLabel;
+
 export function isRecentReport(createdAt?: string | null, maxMinutes = 90): boolean {
   if (!createdAt) return false;
   const time = new Date(createdAt).getTime();
