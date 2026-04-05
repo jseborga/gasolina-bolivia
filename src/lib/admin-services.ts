@@ -26,6 +26,29 @@ function normalizeCoordinate(
   return Number(value.toFixed(6));
 }
 
+function normalizeRating(
+  value: number | null | undefined,
+  type: 'score' | 'count'
+) {
+  if (value == null) return null;
+  if (!Number.isFinite(value)) {
+    throw new Error(type === 'score' ? 'La reputación no es válida.' : 'La cantidad de reseñas no es válida.');
+  }
+
+  if (type === 'score') {
+    if (value < 0 || value > 5) {
+      throw new Error('La reputación debe estar entre 0 y 5.');
+    }
+    return Number(value.toFixed(1));
+  }
+
+  if (value < 0) {
+    throw new Error('La cantidad de reseñas no puede ser negativa.');
+  }
+
+  return Math.round(value);
+}
+
 export function normalizeServiceAdminInput(body: ServiceAdminInput) {
   const name = body.name?.trim();
   if (!name) {
@@ -38,6 +61,8 @@ export function normalizeServiceAdminInput(body: ServiceAdminInput) {
 
   const latitude = normalizeCoordinate(body.latitude ?? null, 'latitude');
   const longitude = normalizeCoordinate(body.longitude ?? null, 'longitude');
+  const ratingScore = normalizeRating(body.rating_score ?? null, 'score');
+  const ratingCount = normalizeRating(body.rating_count ?? null, 'count');
 
   if ((latitude == null) !== (longitude == null)) {
     throw new Error('Debes completar latitud y longitud juntas.');
@@ -52,9 +77,13 @@ export function normalizeServiceAdminInput(body: ServiceAdminInput) {
     is_verified: body.is_verified ?? false,
     latitude,
     longitude,
+    meeting_point: normalizeText(body.meeting_point),
     name,
     notes: normalizeText(body.notes),
     phone: normalizeText(body.phone),
+    price_text: normalizeText(body.price_text),
+    rating_count: ratingCount ?? 0,
+    rating_score: ratingScore ?? 0,
     source_url: normalizeText(body.source_url),
     website_url: normalizeText(body.website_url),
     whatsapp_number: normalizeText(body.whatsapp_number),

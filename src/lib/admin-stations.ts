@@ -25,6 +25,29 @@ function normalizeCoordinate(
   return Number(value.toFixed(6));
 }
 
+function normalizeRating(
+  value: number | null | undefined,
+  type: 'score' | 'votes'
+) {
+  if (value == null) return null;
+  if (!Number.isFinite(value)) {
+    throw new Error(type === 'score' ? 'La reputación no es válida.' : 'La cantidad de votos no es válida.');
+  }
+
+  if (type === 'score') {
+    if (value < 0 || value > 5) {
+      throw new Error('La reputación debe estar entre 0 y 5.');
+    }
+    return Number(value.toFixed(1));
+  }
+
+  if (value < 0) {
+    throw new Error('La cantidad de votos no puede ser negativa.');
+  }
+
+  return Math.round(value);
+}
+
 export function normalizeStationAdminInput(body: StationAdminInput) {
   const name = body.name?.trim();
   if (!name) {
@@ -33,6 +56,8 @@ export function normalizeStationAdminInput(body: StationAdminInput) {
 
   const latitude = normalizeCoordinate(body.latitude ?? null, 'latitude');
   const longitude = normalizeCoordinate(body.longitude ?? null, 'longitude');
+  const reputationScore = normalizeRating(body.reputation_score ?? null, 'score');
+  const reputationVotes = normalizeRating(body.reputation_votes ?? null, 'votes');
 
   if ((latitude == null) !== (longitude == null)) {
     throw new Error('Debes completar latitud y longitud juntas.');
@@ -52,6 +77,8 @@ export function normalizeStationAdminInput(body: StationAdminInput) {
     longitude,
     name,
     notes: normalizeText(body.notes),
+    reputation_score: reputationScore ?? 0,
+    reputation_votes: reputationVotes ?? 0,
     source_url: normalizeText(body.source_url),
     zone: normalizeText(body.zone),
   };

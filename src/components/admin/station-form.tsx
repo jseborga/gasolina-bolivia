@@ -31,6 +31,8 @@ const CREATE_BASE_STATE = {
   maps_input: "",
   name: "",
   notes: "",
+  reputation_score: "0",
+  reputation_votes: "0",
   source_url: "",
   zone: "",
 };
@@ -77,6 +79,8 @@ export function StationForm({ initial, mode, stationId }: Props) {
     address: initial?.address ?? "",
     latitude: initial?.latitude?.toString() ?? "",
     longitude: initial?.longitude?.toString() ?? "",
+    reputation_score: initial?.reputation_score?.toString() ?? "0",
+    reputation_votes: initial?.reputation_votes?.toString() ?? "0",
     fuel_especial: initial?.fuel_especial ?? true,
     fuel_premium: initial?.fuel_premium ?? false,
     fuel_diesel: initial?.fuel_diesel ?? true,
@@ -237,6 +241,10 @@ export function StationForm({ initial, mode, stationId }: Props) {
 
     const latitude = latitudeValue ? Number(latitudeValue) : null;
     const longitude = longitudeValue ? Number(longitudeValue) : null;
+    const reputationScoreValue = form.reputation_score.trim();
+    const reputationVotesValue = form.reputation_votes.trim();
+    const reputationScore = reputationScoreValue ? Number(reputationScoreValue) : 0;
+    const reputationVotes = reputationVotesValue ? Number(reputationVotesValue) : 0;
 
     if (
       (latitudeValue && !Number.isFinite(latitude ?? Number.NaN)) ||
@@ -247,6 +255,18 @@ export function StationForm({ initial, mode, stationId }: Props) {
       return;
     }
 
+    if (!Number.isFinite(reputationScore) || reputationScore < 0 || reputationScore > 5) {
+      setSaving(false);
+      setError("La reputacion debe estar entre 0 y 5.");
+      return;
+    }
+
+    if (!Number.isFinite(reputationVotes) || reputationVotes < 0) {
+      setSaving(false);
+      setError("La cantidad de votos no puede ser negativa.");
+      return;
+    }
+
     const payload: StationAdminInput = {
       name: form.name.trim(),
       zone: form.zone.trim() || undefined,
@@ -254,6 +274,8 @@ export function StationForm({ initial, mode, stationId }: Props) {
       address: form.address.trim() || undefined,
       latitude,
       longitude,
+      reputation_score: reputationScore,
+      reputation_votes: Math.round(reputationVotes),
       fuel_especial: form.fuel_especial,
       fuel_premium: form.fuel_premium,
       fuel_diesel: form.fuel_diesel,
@@ -389,6 +411,27 @@ export function StationForm({ initial, mode, stationId }: Props) {
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-slate-700">Longitud</span>
           <input className={fieldClass()} value={form.longitude} onChange={(e) => updateForm({ longitude: e.target.value })} />
+        </label>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-slate-700">Reputacion</span>
+          <input
+            className={fieldClass()}
+            value={form.reputation_score}
+            onChange={(e) => updateForm({ reputation_score: e.target.value })}
+            placeholder="0 a 5"
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-slate-700">Cantidad de votos</span>
+          <input
+            className={fieldClass()}
+            value={form.reputation_votes}
+            onChange={(e) => updateForm({ reputation_votes: e.target.value })}
+            placeholder="0"
+          />
         </label>
       </div>
 

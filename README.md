@@ -29,6 +29,7 @@ Versión estable para EasyPanel, con:
 - `supabase/001_reset_all.sql`: base inicial
 - `supabase/002_admin_station_fields.sql`: columnas nuevas para estaciones y trigger de `updated_at`
 - `supabase/003_support_services.sql`: talleres, grúas, mecánica y aditivos
+- `supabase/004_mobile_frontend_fields.sql`: reputación de estaciones y servicios, precio y punto de encuentro
 
 ## Migraciones en deploy
 - El contenedor ejecuta `npm run start:deploy`.

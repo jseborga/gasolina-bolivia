@@ -20,6 +20,8 @@ export type Station = {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  reputation_score?: number | null;
+  reputation_votes?: number | null;
   is_active?: boolean;
 };
 
@@ -59,6 +61,10 @@ export type SupportService = {
   whatsapp_number: string | null;
   website_url: string | null;
   description: string | null;
+  price_text: string | null;
+  meeting_point: string | null;
+  rating_score: number | null;
+  rating_count: number | null;
   is_active: boolean;
   is_verified: boolean;
   source_url: string | null;

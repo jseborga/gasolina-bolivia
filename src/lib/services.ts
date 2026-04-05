@@ -6,7 +6,7 @@ export const SUPPORT_SERVICE_OPTIONS: Array<{
 }> = [
   { label: 'Taller mecánico', value: 'taller_mecanico' },
   { label: 'Grúa', value: 'grua' },
-  { label: 'Servicio mecánico', value: 'servicio_mecanico' },
+  { label: 'Auxilio mecánico', value: 'servicio_mecanico' },
   { label: 'Aditivos', value: 'aditivos' },
 ];
 

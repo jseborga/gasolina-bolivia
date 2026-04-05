@@ -2,23 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { RatingStars } from "@/components/rating-stars";
 import { ReportForm } from "@/components/report-form";
-import { SupportServiceCard } from "@/components/support-service-card";
-import { SUPPORT_SERVICE_OPTIONS, getSupportServiceLabel } from "@/lib/services";
+import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
+import {
+  formatAvailability,
+  formatFuelType,
+  formatQueue,
+  formatRelativeTime,
+} from "@/lib/reporting";
+import { getSupportServiceLabel } from "@/lib/services";
 import type {
+  Report,
   ReportInput,
   StationWithLatest,
   SupportService,
+  SupportServiceCategory,
   SupportServiceWithDistance,
 } from "@/lib/types";
-import {
-  getFreshnessLabel,
-  getSortDateValue,
-  haversineKm,
-  matchesFuelFilter,
-  normalizeStatusForSort,
-  queueSortValue,
-} from "@/lib/utils";
+import { haversineKm } from "@/lib/utils";
 
 const StationsMap = dynamic(() => import("@/components/stations-map"), {
   ssr: false,
@@ -30,32 +32,74 @@ type DashboardProps = {
   reportCount?: number;
 };
 
-type SortMode = "recent" | "distance" | "availability" | "queue";
+type CategoryFilter = "all" | "stations" | SupportServiceCategory;
 
-type SelectProps = {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: [string, string][];
-};
+type SearchResult =
+  | {
+      key: string;
+      kind: "station";
+      distanceKm: number | null;
+      searchRank: number;
+      station: StationWithLatest & { distanceKm?: number | null };
+    }
+  | {
+      key: string;
+      kind: "service";
+      distanceKm: number | null;
+      searchRank: number;
+      service: SupportServiceWithDistance;
+    };
 
-function Select({ label, value, onChange, options }: SelectProps) {
-  return (
-    <label className="flex flex-col gap-2 text-sm">
-      <span className="font-medium text-slate-700">{label}</span>
-      <select
-        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-slate-500"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+const categoryOptions: Array<{ label: string; value: CategoryFilter }> = [
+  { label: "Todo", value: "all" },
+  { label: "Surtidores", value: "stations" },
+  { label: "Taller", value: "taller_mecanico" },
+  { label: "Grua", value: "grua" },
+  { label: "Auxilio", value: "servicio_mecanico" },
+  { label: "Aditivos", value: "aditivos" },
+];
+
+function normalizeSearchValue(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function formatDistance(distanceKm?: number | null) {
+  if (distanceKm == null) return "Sin distancia";
+  if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m`;
+  return `${distanceKm.toFixed(1)} km`;
+}
+
+function getStatusPillClass(status?: string | null) {
+  switch (status) {
+    case "si_hay":
+      return "bg-emerald-100 text-emerald-700";
+    case "no_hay":
+      return "bg-rose-100 text-rose-700";
+    case "sin_dato":
+    default:
+      return "bg-amber-100 text-amber-700";
+  }
+}
+
+function getMatchRank(text: string, query: string, title: string) {
+  if (!query) return 0;
+
+  const normalizedTitle = normalizeSearchValue(title);
+  if (normalizedTitle.startsWith(query)) return 3;
+  if (normalizedTitle.includes(query)) return 2;
+  if (text.includes(query)) return 1;
+  return -1;
+}
+
+function normalizeExternalUrl(url?: string | null) {
+  const trimmed = url?.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
 }
 
 export function Dashboard({
@@ -65,17 +109,10 @@ export function Dashboard({
 }: DashboardProps) {
   const [stations, setStations] = useState<StationWithLatest[]>(initialStations);
   const [services, setServices] = useState<SupportService[]>(initialServices);
-  const [selectedStationId, setSelectedStationId] = useState<number | null>(
-    initialStations[0]?.id ?? null
-  );
-
-  const [fuelFilter, setFuelFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [zoneFilter, setZoneFilter] = useState<string>("all");
-  const [serviceCategoryFilter, setServiceCategoryFilter] = useState<string>("all");
-  const [onlyRecent, setOnlyRecent] = useState<boolean>(false);
-  const [sortMode, setSortMode] = useState<SortMode>("recent");
-
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [showReportForm, setShowReportForm] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationState, setLocationState] = useState<
     "idle" | "loading" | "granted" | "denied" | "error"
@@ -83,35 +120,11 @@ export function Dashboard({
 
   useEffect(() => {
     setStations(initialStations);
-    if (!selectedStationId && initialStations[0]?.id) {
-      setSelectedStationId(initialStations[0].id);
-    }
-  }, [initialStations, selectedStationId]);
+  }, [initialStations]);
 
   useEffect(() => {
     setServices(initialServices);
   }, [initialServices]);
-
-  const zones = useMemo(() => {
-    const unique = Array.from(
-      new Set(
-        [...initialStations.map((station) => station.zone?.trim()), ...initialServices.map((service) => service.zone?.trim())]
-          .filter((zone): zone is string => Boolean(zone))
-      )
-    ).sort((a, b) => a.localeCompare(b, "es"));
-
-    return unique;
-  }, [initialStations, initialServices]);
-
-  const zoneOptions: [string, string][] = [
-    ["all", "Todas"],
-    ...zones.map((zone) => [zone, zone] as [string, string]),
-  ];
-
-  const serviceCategoryOptions: [string, string][] = [
-    ["all", "Todos"],
-    ...SUPPORT_SERVICE_OPTIONS.map((option) => [option.value, option.label] as [string, string]),
-  ];
 
   const stationsWithDistance = useMemo(() => {
     return stations.map((station) => {
@@ -161,115 +174,112 @@ export function Dashboard({
     });
   }, [services, userLocation]);
 
-  const filteredStations = useMemo(() => {
-    const now = Date.now();
+  const normalizedQuery = normalizeSearchValue(search);
 
-    const filtered = stationsWithDistance.filter((station) => {
-      const latest = station.latestReport;
+  const results = useMemo<SearchResult[]>(() => {
+    const stationResults: SearchResult[] =
+      categoryFilter === "all" || categoryFilter === "stations"
+        ? stationsWithDistance
+            .map((station) => {
+              const searchText = normalizeSearchValue(
+                [
+                  station.name,
+                  station.zone,
+                  station.city,
+                  station.address,
+                  station.latestReport?.comment,
+                  station.latestReport?.fuel_type,
+                  station.latestReport?.availability_status,
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+              );
 
-      if (zoneFilter !== "all" && (station.zone ?? "") !== zoneFilter) {
-        return false;
+              const searchRank = getMatchRank(searchText, normalizedQuery, station.name);
+              return {
+                key: `station-${station.id}`,
+                kind: "station" as const,
+                distanceKm: station.distanceKm ?? null,
+                searchRank,
+                station,
+              };
+            })
+            .filter((item) => !normalizedQuery || item.searchRank >= 0)
+        : [];
+
+    const serviceResults: SearchResult[] =
+      categoryFilter !== "stations"
+        ? servicesWithDistance
+            .filter((service) =>
+              categoryFilter === "all" ? true : service.category === categoryFilter
+            )
+            .map((service) => {
+              const searchText = normalizeSearchValue(
+                [
+                  service.name,
+                  service.zone,
+                  service.city,
+                  service.address,
+                  service.description,
+                  service.price_text,
+                  service.meeting_point,
+                  getSupportServiceLabel(service.category),
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+              );
+
+              const searchRank = getMatchRank(searchText, normalizedQuery, service.name);
+              return {
+                key: `service-${service.id}`,
+                kind: "service" as const,
+                distanceKm: service.distanceKm ?? null,
+                searchRank,
+                service,
+              };
+            })
+            .filter((item) => !normalizedQuery || item.searchRank >= 0)
+        : [];
+
+    return [...stationResults, ...serviceResults].sort((a, b) => {
+      if (normalizedQuery) {
+        if (a.searchRank !== b.searchRank) return b.searchRank - a.searchRank;
       }
 
-      if (fuelFilter !== "all" && !matchesFuelFilter(latest?.fuel_type, fuelFilter)) {
-        return false;
-      }
-
-      if (statusFilter !== "all") {
-        const status = latest?.availability_status ?? "sin_dato";
-        if (status !== statusFilter) {
-          return false;
-        }
-      }
-
-      if (onlyRecent) {
-        if (!latest?.created_at) {
-          return false;
-        }
-        const ageMs = now - new Date(latest.created_at).getTime();
-        if (ageMs > 90 * 60 * 1000) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    return [...filtered].sort((a, b) => {
-      if (sortMode === "distance") {
-        const aDistance = a.distanceKm ?? Number.POSITIVE_INFINITY;
-        const bDistance = b.distanceKm ?? Number.POSITIVE_INFINITY;
-        return aDistance - bDistance;
-      }
-
-      if (sortMode === "availability") {
-        const aStatus = normalizeStatusForSort(a.latestReport?.availability_status);
-        const bStatus = normalizeStatusForSort(b.latestReport?.availability_status);
-        if (aStatus !== bStatus) return aStatus - bStatus;
-        return (
-          getSortDateValue(b.latestReport?.created_at) -
-          getSortDateValue(a.latestReport?.created_at)
-        );
-      }
-
-      if (sortMode === "queue") {
-        const aQueue = queueSortValue(a.latestReport?.queue_status);
-        const bQueue = queueSortValue(b.latestReport?.queue_status);
-        if (aQueue !== bQueue) return aQueue - bQueue;
-        return (
-          getSortDateValue(b.latestReport?.created_at) -
-          getSortDateValue(a.latestReport?.created_at)
-        );
-      }
-
-      return (
-        getSortDateValue(b.latestReport?.created_at) -
-        getSortDateValue(a.latestReport?.created_at)
-      );
-    });
-  }, [stationsWithDistance, zoneFilter, fuelFilter, statusFilter, onlyRecent, sortMode]);
-
-  const filteredServices = useMemo(() => {
-    const filtered = servicesWithDistance.filter((service) => {
-      if (zoneFilter !== "all" && (service.zone ?? "") !== zoneFilter) {
-        return false;
-      }
-
-      if (serviceCategoryFilter !== "all" && service.category !== serviceCategoryFilter) {
-        return false;
-      }
-
-      return service.is_active !== false;
-    });
-
-    return [...filtered].sort((a, b) => {
       const aDistance = a.distanceKm ?? Number.POSITIVE_INFINITY;
       const bDistance = b.distanceKm ?? Number.POSITIVE_INFINITY;
       if (aDistance !== bDistance) return aDistance - bDistance;
 
-      const categoryCompare = getSupportServiceLabel(a.category).localeCompare(
-        getSupportServiceLabel(b.category),
-        "es"
-      );
-      if (categoryCompare !== 0) return categoryCompare;
-
-      return a.name.localeCompare(b.name, "es");
+      const aName = a.kind === "station" ? a.station.name : a.service.name;
+      const bName = b.kind === "station" ? b.station.name : b.service.name;
+      return aName.localeCompare(bName, "es");
     });
-  }, [servicesWithDistance, zoneFilter, serviceCategoryFilter]);
-
-  const selectedStation = useMemo(
-    () =>
-      filteredStations.find((station) => station.id === selectedStationId) ??
-      filteredStations[0] ??
-      null,
-    [filteredStations, selectedStationId]
-  );
+  }, [categoryFilter, normalizedQuery, servicesWithDistance, stationsWithDistance]);
 
   useEffect(() => {
-    if (selectedStation && selectedStation.id !== selectedStationId) {
-      setSelectedStationId(selectedStation.id);
+    if (!selectedKey || !results.some((item) => item.key === selectedKey)) {
+      setSelectedKey(results[0]?.key ?? null);
     }
-  }, [selectedStation, selectedStationId]);
+  }, [results, selectedKey]);
+
+  useEffect(() => {
+    setShowReportForm(false);
+  }, [selectedKey]);
+
+  const selectedResult = useMemo(
+    () => results.find((item) => item.key === selectedKey) ?? null,
+    [results, selectedKey]
+  );
+
+  const mapStations = useMemo(
+    () => results.filter((item): item is Extract<SearchResult, { kind: "station" }> => item.kind === "station").map((item) => item.station),
+    [results]
+  );
+
+  const mapServices = useMemo(
+    () => results.filter((item): item is Extract<SearchResult, { kind: "service" }> => item.kind === "service").map((item) => item.service),
+    [results]
+  );
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
@@ -298,281 +308,348 @@ export function Dashboard({
     );
   };
 
-  const handleSubmitReport = async (_input: ReportInput) => {
-    return {
-      ok: true,
-      message: "Reporte enviado",
-    };
+  const handleSubmitReport = async (input: ReportInput) => {
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+
+      const json = (await res.json()) as { error?: string; report?: Report };
+      if (!res.ok || !json.report) {
+        throw new Error(json.error || "No se pudo enviar el reporte.");
+      }
+
+      setStations((current) =>
+        current.map((station) =>
+          station.id === input.station_id
+            ? {
+                ...station,
+                latestReport: json.report ?? station.latestReport,
+              }
+            : station
+        )
+      );
+
+      return {
+        ok: true,
+        message: "Reporte enviado.",
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "No se pudo enviar el reporte.",
+      };
+    }
   };
 
+  const quickResults = results.slice(0, 8);
+
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Surtidores</div>
-          <div className="mt-2 text-3xl font-bold text-slate-900">{stations.length}</div>
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Servicios de auxilio</div>
-          <div className="mt-2 text-3xl font-bold text-slate-900">{services.length}</div>
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Reportes</div>
-          <div className="mt-2 text-3xl font-bold text-slate-900">{reportCount}</div>
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Ubicacion</div>
-          <div className="mt-2 text-sm font-medium text-slate-900">
-            {locationState === "granted"
-              ? "Activa"
-              : locationState === "loading"
-                ? "Buscando..."
-                : "No activada"}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Mapa de surtidores y auxilio
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Visualiza surtidores, talleres, gruas, servicio mecanico y venta de
-                  aditivos.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleUseMyLocation}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                {locationState === "loading" ? "Ubicando..." : "Usar mi ubicacion"}
-              </button>
-            </div>
-
-            <div className="mt-3 text-xs text-slate-500">
-              {locationState === "granted" &&
-                "Ubicacion activada. Se muestran distancias aproximadas."}
-              {locationState === "denied" &&
-                "Permiso de ubicacion denegado. Puedes seguir usando la app."}
-              {locationState === "error" &&
-                "Tu navegador no soporta geolocalizacion o hubo un error."}
-              {locationState === "idle" &&
-                "La ubicacion es opcional y no se guarda en la base de datos."}
-            </div>
-          </div>
-
-          <div className="h-[420px]">
-            <StationsMap
-              services={filteredServices}
-              stations={filteredStations}
-              selectedStationId={selectedStation?.id ?? null}
-              onSelectStation={(id) => setSelectedStationId(id)}
-              userLocation={userLocation}
-            />
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Reporte rapido</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Registra disponibilidad, fila y comentario del surtidor seleccionado.
-          </p>
-
-          <div className="mt-4">
-            <ReportForm
-              stations={stations}
-              defaultStationId={selectedStation?.id ?? undefined}
-              onSubmit={handleSubmitReport}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-end gap-4">
-          <Select
-            label="Combustible"
-            value={fuelFilter}
-            onChange={setFuelFilter}
-            options={[
-              ["all", "Todos"],
-              ["especial", "Especial"],
-              ["premium", "Premium"],
-              ["diesel", "Diesel"],
-            ]}
-          />
-
-          <Select
-            label="Estado"
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              ["all", "Todos"],
-              ["si_hay", "Si hay"],
-              ["no_hay", "No hay"],
-              ["sin_dato", "Sin dato"],
-            ]}
-          />
-
-          <Select label="Zona" value={zoneFilter} onChange={setZoneFilter} options={zoneOptions} />
-
-          <Select
-            label="Tipo de servicio"
-            value={serviceCategoryFilter}
-            onChange={setServiceCategoryFilter}
-            options={serviceCategoryOptions}
-          />
-
-          <Select
-            label="Ordenar surtidores"
-            value={sortMode}
-            onChange={(value) => setSortMode(value as SortMode)}
-            options={[
-              ["recent", "Mas reciente"],
-              ["distance", "Mas cercano"],
-              ["availability", "Disponibilidad"],
-              ["queue", "Fila"],
-            ]}
-          />
-
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={onlyRecent}
-              onChange={(e) => setOnlyRecent(e.target.checked)}
-            />
-            Solo recientes
-          </label>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-4">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="space-y-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Auxilio y servicios</h2>
-            <p className="text-sm text-slate-500">
-              Contacta talleres, gruas o soporte mecanico directo desde la app.
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              SurtiMapa
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-900">
+              Busca surtidores, talleres, gruas, auxilio y aditivos
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {results.length} puntos visibles en mapa - {reportCount} reportes cargados
             </p>
           </div>
-          <div className="text-sm text-slate-500">{filteredServices.length} resultados</div>
-        </div>
 
-        {filteredServices.length > 0 ? (
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredServices.map((service) => (
-              <SupportServiceCard key={service.id} service={service} />
-            ))}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar surtidor, taller, grua, auxilio o aditivos"
+              className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
+            />
+            <button
+              type="button"
+              onClick={handleUseMyLocation}
+              className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              {locationState === "loading" ? "Ubicando..." : "Usar mi ubicacion"}
+            </button>
           </div>
-        ) : (
-          <div className="mt-5 rounded-2xl border border-dashed border-slate-200 p-5 text-sm text-slate-500">
-            No hay servicios de auxilio para los filtros seleccionados.
-          </div>
-        )}
-      </section>
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Surtidores</h2>
-          <p className="text-sm text-slate-500">
-            Selecciona un surtidor para reportar o revisar su ultimo estado.
-          </p>
-        </div>
-
-        {filteredStations.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredStations.map((station) => {
-              const latest = station.latestReport;
-              const freshness = getFreshnessLabel(latest?.created_at);
-              const isSelected = selectedStation?.id === station.id;
-
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categoryOptions.map((option) => {
+              const isActive = categoryFilter === option.value;
               return (
                 <button
-                  key={station.id}
+                  key={option.value}
                   type="button"
-                  onClick={() => setSelectedStationId(station.id)}
-                  className={`rounded-3xl border p-5 text-left shadow-sm transition ${
-                    isSelected
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+                  onClick={() => setCategoryFilter(option.value)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    isActive
+                      ? "bg-slate-900 text-white"
+                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold">{station.name}</h3>
-                      <p className={`text-sm ${isSelected ? "text-slate-300" : "text-slate-500"}`}>
-                        {station.zone || "Sin zona"}
-                      </p>
-                    </div>
-
-                    {station.distanceKm != null && (
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${
-                          isSelected ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {station.distanceKm.toFixed(1)} km
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-4 space-y-2 text-sm">
-                    <div>
-                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
-                        Direccion:{" "}
-                      </span>
-                      <span>{station.address || "Sin direccion"}</span>
-                    </div>
-
-                    <div>
-                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
-                        Combustible:{" "}
-                      </span>
-                      <span>{latest?.fuel_type ?? "Sin dato"}</span>
-                    </div>
-
-                    <div>
-                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
-                        Disponibilidad:{" "}
-                      </span>
-                      <span>{latest?.availability_status ?? "sin_dato"}</span>
-                    </div>
-
-                    <div>
-                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
-                        Fila:{" "}
-                      </span>
-                      <span>{latest?.queue_status ?? "sin_dato"}</span>
-                    </div>
-
-                    <div>
-                      <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
-                        Actualizacion:{" "}
-                      </span>
-                      <span>{freshness}</span>
-                    </div>
-
-                    {latest?.comment && (
-                      <div>
-                        <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
-                          Comentario:{" "}
-                        </span>
-                        <span>{latest.comment}</span>
-                      </div>
-                    )}
-                  </div>
+                  {option.label}
                 </button>
               );
             })}
           </div>
+
+          <div className="text-xs text-slate-500">
+            {locationState === "granted" && "Ubicacion activada. Se priorizan resultados cercanos."}
+            {locationState === "denied" && "La ubicacion fue denegada. El mapa sigue funcionando."}
+            {locationState === "error" && "No se pudo obtener tu ubicacion en este navegador."}
+            {locationState === "idle" && "Toca un marcador para ver una ficha simple del punto."}
+          </div>
+        </div>
+      </section>
+
+      {quickResults.length > 0 ? (
+        <section className="flex gap-2 overflow-x-auto pb-1">
+          {quickResults.map((item) => {
+            const title = item.kind === "station" ? item.station.name : item.service.name;
+            const subtitle =
+              item.kind === "station"
+                ? item.station.zone || "Surtidor"
+                : getSupportServiceLabel(item.service.category);
+
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setSelectedKey(item.key)}
+                className={`min-w-[150px] rounded-2xl border px-4 py-3 text-left shadow-sm transition ${
+                  selectedKey === item.key
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-900"
+                }`}
+              >
+                <div className="text-sm font-semibold">{title}</div>
+                <div
+                  className={`mt-1 text-xs ${
+                    selectedKey === item.key ? "text-slate-300" : "text-slate-500"
+                  }`}
+                >
+                  {subtitle}
+                </div>
+              </button>
+            );
+          })}
+        </section>
+      ) : null}
+
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-[58vh] min-h-[420px] sm:h-[70vh]">
+          <StationsMap
+            services={mapServices}
+            stations={mapStations}
+            selectedKey={selectedKey}
+            onSelectKey={setSelectedKey}
+            userLocation={userLocation}
+          />
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        {!selectedResult ? (
+          <div className="text-sm text-slate-500">
+            No hay resultados para la busqueda actual.
+          </div>
+        ) : selectedResult.kind === "station" ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                  Surtidor
+                </span>
+                <h2 className="mt-3 text-xl font-semibold text-slate-900">
+                  {selectedResult.station.name}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {[selectedResult.station.zone, selectedResult.station.city]
+                    .filter(Boolean)
+                    .join(" | ") || "Sin zona"}
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusPillClass(
+                  selectedResult.station.latestReport?.availability_status
+                )}`}
+              >
+                {formatAvailability(selectedResult.station.latestReport?.availability_status)}
+              </span>
+            </div>
+
+            <RatingStars
+              score={selectedResult.station.reputation_score}
+              count={selectedResult.station.reputation_votes}
+              size="md"
+            />
+
+            <div className="grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Direccion</div>
+                <div className="mt-2">{selectedResult.station.address || "Sin direccion"}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Combustible</div>
+                <div className="mt-2">
+                  {formatFuelType(selectedResult.station.latestReport?.fuel_type)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Fila</div>
+                <div className="mt-2">
+                  {formatQueue(selectedResult.station.latestReport?.queue_status)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Actualizado</div>
+                <div className="mt-2">
+                  {formatRelativeTime(selectedResult.station.latestReport?.created_at)}
+                </div>
+              </div>
+            </div>
+
+            {selectedResult.station.latestReport?.comment ? (
+              <div className="rounded-2xl border border-slate-200 p-4 text-sm text-slate-700">
+                {selectedResult.station.latestReport.comment}
+              </div>
+            ) : null}
+
+            {selectedResult.distanceKm != null ? (
+              <div className="text-sm text-slate-500">
+                Distancia aproximada: {formatDistance(selectedResult.distanceKm)}
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <button
+                type="button"
+                onClick={() => setShowReportForm((value) => !value)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {showReportForm ? "Ocultar reporte" : "Reportar estado de este surtidor"}
+              </button>
+
+              {showReportForm ? (
+                <div className="mt-4">
+                  <ReportForm
+                    stations={stations}
+                    defaultStationId={selectedResult.station.id}
+                    onSubmit={handleSubmitReport}
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 p-5 text-sm text-slate-500">
-            No hay surtidores que coincidan con los filtros seleccionados.
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                  {getSupportServiceLabel(selectedResult.service.category)}
+                </span>
+                <h2 className="mt-3 text-xl font-semibold text-slate-900">
+                  {selectedResult.service.name}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {[selectedResult.service.zone, selectedResult.service.city]
+                    .filter(Boolean)
+                    .join(" | ") || "Sin zona"}
+                </p>
+              </div>
+              {selectedResult.distanceKm != null ? (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                  {formatDistance(selectedResult.distanceKm)}
+                </span>
+              ) : null}
+            </div>
+
+            <RatingStars
+              score={selectedResult.service.rating_score}
+              count={selectedResult.service.rating_count}
+              size="md"
+            />
+
+            <div className="grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Direccion</div>
+                <div className="mt-2">{selectedResult.service.address || "Sin direccion"}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Contacto</div>
+                <div className="mt-2">
+                  {formatContactLabel(
+                    selectedResult.service.phone ?? selectedResult.service.whatsapp_number
+                  )}
+                </div>
+              </div>
+              {selectedResult.service.price_text ? (
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Precio</div>
+                  <div className="mt-2">{selectedResult.service.price_text}</div>
+                </div>
+              ) : null}
+              {selectedResult.service.meeting_point ? (
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Punto de encuentro
+                  </div>
+                  <div className="mt-2">{selectedResult.service.meeting_point}</div>
+                </div>
+              ) : null}
+            </div>
+
+            {selectedResult.service.description ? (
+              <div className="rounded-2xl border border-slate-200 p-4 text-sm text-slate-700">
+                {selectedResult.service.description}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-3">
+              {buildWhatsAppHref(
+                selectedResult.service.whatsapp_number ?? selectedResult.service.phone
+              ) ? (
+                <a
+                  href={buildWhatsAppHref(
+                    selectedResult.service.whatsapp_number ?? selectedResult.service.phone
+                  )}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  WhatsApp
+                </a>
+              ) : null}
+
+              {buildTelHref(
+                selectedResult.service.phone ?? selectedResult.service.whatsapp_number
+              ) ? (
+                <a
+                  href={buildTelHref(
+                    selectedResult.service.phone ?? selectedResult.service.whatsapp_number
+                  )}
+                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Llamar
+                </a>
+              ) : null}
+
+              {normalizeExternalUrl(selectedResult.service.website_url) ? (
+                <a
+                  href={normalizeExternalUrl(selectedResult.service.website_url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Abrir enlace
+                </a>
+              ) : null}
+            </div>
           </div>
         )}
       </section>

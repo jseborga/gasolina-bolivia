@@ -12,7 +12,7 @@ export default async function AdminStationsPage() {
     const supabase = getAdminSupabase();
     const { data, error } = await supabase
       .from('stations')
-      .select('id,name,zone,city,address,latitude,longitude,fuel_especial,fuel_premium,fuel_diesel,fuel_gnv,is_active,is_verified,source_url,notes,license_code,created_at,updated_at')
+      .select('id,name,zone,city,address,latitude,longitude,reputation_score,reputation_votes,fuel_especial,fuel_premium,fuel_diesel,fuel_gnv,is_active,is_verified,source_url,notes,license_code,created_at,updated_at')
       .order('name', { ascending: true });
 
     if (error) {

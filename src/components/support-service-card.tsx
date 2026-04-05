@@ -1,6 +1,7 @@
 "use client";
 
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
+import { RatingStars } from "@/components/rating-stars";
 import { getSupportServiceLabel } from "@/lib/services";
 import type { SupportServiceWithDistance } from "@/lib/types";
 
@@ -54,6 +55,9 @@ export function SupportServiceCard({ service }: SupportServiceCardProps) {
       <div className="mt-4 space-y-2 text-sm text-slate-700">
         <p>{service.address || "Sin direccion registrada"}</p>
         {service.description && <p className="text-slate-600">{service.description}</p>}
+        <RatingStars score={service.rating_score} count={service.rating_count} />
+        {service.price_text && <p>Precio: {service.price_text}</p>}
+        {service.meeting_point && <p>Punto: {service.meeting_point}</p>}
         <p>Contacto: {formatContactLabel(service.phone ?? service.whatsapp_number)}</p>
       </div>
 

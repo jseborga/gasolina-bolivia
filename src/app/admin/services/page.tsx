@@ -16,7 +16,7 @@ export default async function AdminServicesPage() {
     const supabase = getAdminSupabase();
     const { data, error } = await supabase
       .from('support_services')
-      .select('id,name,category,zone,city,address,latitude,longitude,phone,whatsapp_number,website_url,description,is_active,is_verified,source_url,notes,created_at,updated_at')
+      .select('id,name,category,zone,city,address,latitude,longitude,phone,whatsapp_number,website_url,description,price_text,meeting_point,rating_score,rating_count,is_active,is_verified,source_url,notes,created_at,updated_at')
       .order('name', { ascending: true });
 
     if (error) {

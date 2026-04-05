@@ -5,6 +5,8 @@ export type StationAdminInput = {
   address?: string;
   latitude?: number | null;
   longitude?: number | null;
+  reputation_score?: number | null;
+  reputation_votes?: number | null;
   fuel_especial?: boolean;
   fuel_premium?: boolean;
   fuel_diesel?: boolean;
@@ -24,6 +26,8 @@ export type StationAdminRow = {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  reputation_score: number | null;
+  reputation_votes: number | null;
   fuel_especial: boolean;
   fuel_premium: boolean;
   fuel_diesel: boolean;
