@@ -76,3 +76,22 @@ export type StationImportApplyItem = {
   sourceUrl: string;
   action: StationImportAction;
 };
+
+export type StationAddressCandidate = {
+  city: string;
+  displayName: string;
+  latitude: number;
+  longitude: number;
+  road: string;
+};
+
+export type StationLocationVerification = {
+  addressCandidate: StationAddressCandidate | null;
+  distanceKm: number | null;
+  inputAddress: string;
+  inputLatitude: number | null;
+  inputLongitude: number | null;
+  issues: string[];
+  reverseCandidate: StationAddressCandidate | null;
+  status: 'missing' | 'ok' | 'warning';
+};

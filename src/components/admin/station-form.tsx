@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseMapsInput, type ParsedMapsInput } from "@/lib/google-maps";
-import type { StationAdminInput, StationAdminRow } from "@/lib/admin-types";
+import type {
+  StationAdminInput,
+  StationAdminRow,
+  StationLocationVerification,
+} from "@/lib/admin-types";
 import { StationLocationPicker } from "@/components/admin/station-location-picker";
 
 type Props = {
@@ -35,27 +39,33 @@ function fieldClass() {
   return "rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-slate-500";
 }
 
+function formatDistance(distanceKm?: number | null) {
+  if (distanceKm == null) return "Sin distancia";
+  if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m`;
+  return `${distanceKm.toFixed(2)} km`;
+}
+
 function buildResolveMessage(parsed: ParsedMapsInput) {
   if (parsed.latitude != null && parsed.longitude != null) {
     switch (parsed.matchSource) {
       case "redirect":
-        return "Coordenadas extraídas desde el enlace resuelto.";
+        return "Coordenadas extraidas desde el enlace resuelto.";
       case "html":
-        return "Coordenadas detectadas dentro de la página de Google Maps.";
+        return "Coordenadas detectadas dentro de la pagina de Google Maps.";
       default:
         return "Coordenadas detectadas y cargadas en el formulario.";
     }
   }
 
   if (parsed.sourceUrl) {
-    return "Se guardó el enlace, pero no se pudieron obtener coordenadas automáticamente.";
+    return "Se guardo el enlace, pero no se pudieron obtener coordenadas automaticamente.";
   }
 
   if (parsed.address) {
-    return "Se cargó la dirección. Si falta el punto, ajústalo manualmente en el mapa.";
+    return "Se cargo la direccion. Si falta el punto, ajustalo manualmente en el mapa.";
   }
 
-  return "No se encontró información útil en el texto pegado.";
+  return "No se encontro informacion util en el texto pegado.";
 }
 
 export function StationForm({ initial, mode, stationId }: Props) {
@@ -80,31 +90,46 @@ export function StationForm({ initial, mode, stationId }: Props) {
   });
   const [saving, setSaving] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verification, setVerification] = useState<StationLocationVerification | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const parsedPreview = useMemo(() => parseMapsInput(form.maps_input), [form.maps_input]);
 
+  const clearFeedback = () => {
+    setError(null);
+    setMessage(null);
+  };
+
+  const clearVerification = () => {
+    setVerification(null);
+  };
+
+  const updateForm = (patch: Partial<typeof form>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    clearVerification();
+  };
+
   const applyParsedToForm = (parsed: ParsedMapsInput) => {
-    setForm((prev) => ({
-      ...prev,
-      address: parsed.address || prev.address,
-      latitude: parsed.latitude != null ? parsed.latitude.toFixed(6) : prev.latitude,
-      longitude: parsed.longitude != null ? parsed.longitude.toFixed(6) : prev.longitude,
-      source_url: parsed.sourceUrl || prev.source_url,
-    }));
+    updateForm({
+      address: parsed.address || form.address,
+      latitude: parsed.latitude != null ? parsed.latitude.toFixed(6) : form.latitude,
+      longitude: parsed.longitude != null ? parsed.longitude.toFixed(6) : form.longitude,
+      source_url: parsed.sourceUrl || form.source_url,
+    });
   };
 
   const applyMapsInput = async () => {
     const input = form.maps_input.trim();
     if (!input) {
-      setError("Pega una URL, dirección o coordenadas.");
+      setError("Pega una URL, direccion o coordenadas.");
       setMessage(null);
       return;
     }
 
-    setError(null);
-    setMessage(null);
+    clearFeedback();
+    clearVerification();
 
     const localParsed = parseMapsInput(input);
     let finalParsed = localParsed;
@@ -147,17 +172,58 @@ export function StationForm({ initial, mode, stationId }: Props) {
     }
 
     if (finalParsed.latitude == null || finalParsed.longitude == null) {
-      setError("No se encontraron coordenadas automáticas. Usa el mapa para fijar el punto.");
+      setError("No se encontraron coordenadas automaticas. Usa el mapa para fijar el punto.");
     }
 
     setMessage(buildResolveMessage(finalParsed));
   };
 
+  const verifyLocation = async () => {
+    if (!form.address.trim() && (!form.latitude.trim() || !form.longitude.trim())) {
+      setError("Necesitas direccion o coordenadas para verificar.");
+      setMessage(null);
+      return;
+    }
+
+    setVerifying(true);
+    clearFeedback();
+
+    try {
+      const res = await fetch("/api/admin/maps/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: form.address.trim(),
+          latitude: form.latitude.trim(),
+          longitude: form.longitude.trim(),
+        }),
+      });
+
+      const json = (await res.json()) as StationLocationVerification & { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "No se pudo verificar la ubicacion.");
+      }
+
+      setVerification(json);
+      if (json.status === "ok" && json.issues.length === 0) {
+        setMessage("Direccion y punto verificados.");
+      } else if (json.status === "warning") {
+        setError("La direccion y el punto necesitan revision.");
+      } else {
+        setMessage("Verificacion completada con datos parciales.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo verificar la ubicacion.");
+      setVerification(null);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setMessage(null);
+    clearFeedback();
 
     const latitudeValue = form.latitude.trim();
     const longitudeValue = form.longitude.trim();
@@ -176,7 +242,7 @@ export function StationForm({ initial, mode, stationId }: Props) {
       (longitudeValue && !Number.isFinite(longitude ?? Number.NaN))
     ) {
       setSaving(false);
-      setError("Las coordenadas deben ser numéricas.");
+      setError("Las coordenadas deben ser numericas.");
       return;
     }
 
@@ -213,6 +279,7 @@ export function StationForm({ initial, mode, stationId }: Props) {
 
       if (mode === "create") {
         setForm({ ...CREATE_BASE_STATE });
+        clearVerification();
         router.replace(
           `/admin/stations/new?created=1&name=${encodeURIComponent(payload.name)}`
         );
@@ -220,7 +287,7 @@ export function StationForm({ initial, mode, stationId }: Props) {
         return;
       }
 
-      setMessage("Estación actualizada.");
+      setMessage("Estacion actualizada.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
@@ -232,10 +299,10 @@ export function StationForm({ initial, mode, stationId }: Props) {
     <form onSubmit={onSubmit} className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
         <h2 className="text-xl font-semibold text-slate-900">
-          {mode === "create" ? "Nueva estación" : "Editar estación"}
+          {mode === "create" ? "Nueva estacion" : "Editar estacion"}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Puedes pegar una dirección, coordenadas o una URL de Google Maps. Si
+          Puedes pegar una direccion, coordenadas o una URL de Google Maps. Si
           la URL es corta o redirige, el sistema intenta resolverla antes de
           completar el punto.
         </p>
@@ -244,26 +311,26 @@ export function StationForm({ initial, mode, stationId }: Props) {
       <div className="grid gap-4 md:grid-cols-2">
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-slate-700">Nombre</span>
-          <input className={fieldClass()} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          <input className={fieldClass()} value={form.name} onChange={(e) => updateForm({ name: e.target.value })} required />
         </label>
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-slate-700">Zona</span>
-          <input className={fieldClass()} value={form.zone} onChange={(e) => setForm({ ...form, zone: e.target.value })} />
+          <input className={fieldClass()} value={form.zone} onChange={(e) => updateForm({ zone: e.target.value })} />
         </label>
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-slate-700">Ciudad</span>
-          <input className={fieldClass()} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+          <input className={fieldClass()} value={form.city} onChange={(e) => updateForm({ city: e.target.value })} />
         </label>
         <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-slate-700">Código / licencia</span>
-          <input className={fieldClass()} value={form.license_code} onChange={(e) => setForm({ ...form, license_code: e.target.value })} />
+          <span className="font-medium text-slate-700">Codigo / licencia</span>
+          <input className={fieldClass()} value={form.license_code} onChange={(e) => updateForm({ license_code: e.target.value })} />
         </label>
       </div>
 
       <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-slate-700">Pega dirección, coordenadas o URL de Google Maps</span>
-          <textarea className={fieldClass()} value={form.maps_input} onChange={(e) => setForm({ ...form, maps_input: e.target.value })} rows={3} />
+          <span className="font-medium text-slate-700">Pega direccion, coordenadas o URL de Google Maps</span>
+          <textarea className={fieldClass()} value={form.maps_input} onChange={(e) => updateForm({ maps_input: e.target.value })} rows={3} />
         </label>
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -281,43 +348,161 @@ export function StationForm({ initial, mode, stationId }: Props) {
       </div>
 
       <label className="flex flex-col gap-2 text-sm">
-        <span className="font-medium text-slate-700">Dirección</span>
-        <input className={fieldClass()} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+        <span className="font-medium text-slate-700">Direccion</span>
+        <input className={fieldClass()} value={form.address} onChange={(e) => updateForm({ address: e.target.value })} />
       </label>
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-slate-700">Latitud</span>
-          <input className={fieldClass()} value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} />
+          <input className={fieldClass()} value={form.latitude} onChange={(e) => updateForm({ latitude: e.target.value })} />
         </label>
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-slate-700">Longitud</span>
-          <input className={fieldClass()} value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
+          <input className={fieldClass()} value={form.longitude} onChange={(e) => updateForm({ longitude: e.target.value })} />
         </label>
       </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={verifyLocation}
+          disabled={verifying}
+          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          {verifying ? "Verificando..." : "Verificar calle y punto"}
+        </button>
+        <span className="text-xs text-slate-500">
+          Compara la direccion con una geocodificacion externa y con la calle del punto.
+        </span>
+      </div>
+
+      {verification ? (
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                verification.status === "ok"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : verification.status === "warning"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-200 text-slate-700"
+              }`}
+            >
+              {verification.status === "ok"
+                ? "Coherente"
+                : verification.status === "warning"
+                  ? "Revisar"
+                  : "Parcial"}
+            </span>
+            <span className="text-sm text-slate-600">
+              Distancia entre direccion geocodificada y punto actual: {formatDistance(verification.distanceKm)}
+            </span>
+          </div>
+
+          {verification.issues.length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
+              {verification.issues.map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-700">
+              La direccion y el punto no muestran diferencias importantes.
+            </p>
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">Direccion interpretada</p>
+              {verification.addressCandidate ? (
+                <>
+                  <p className="mt-2 text-sm text-slate-700">{verification.addressCandidate.displayName}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Punto sugerido: {verification.addressCandidate.latitude.toFixed(6)}, {verification.addressCandidate.longitude.toFixed(6)}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateForm({
+                          latitude: verification.addressCandidate!.latitude.toFixed(6),
+                          longitude: verification.addressCandidate!.longitude.toFixed(6),
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Usar punto sugerido
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateForm({
+                          address: verification.addressCandidate!.displayName,
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Usar direccion sugerida
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">No hubo coincidencia clara para la direccion.</p>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">Calle estimada del punto</p>
+              {verification.reverseCandidate ? (
+                <>
+                  <p className="mt-2 text-sm text-slate-700">{verification.reverseCandidate.displayName}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Calle: {verification.reverseCandidate.road || "sin calle detectada"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateForm({
+                          address: verification.reverseCandidate!.displayName,
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Usar direccion del punto
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">No se pudo estimar una calle para estas coordenadas.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <StationLocationPicker
         latitude={form.latitude}
         longitude={form.longitude}
         onChange={({ latitude, longitude }) =>
-          setForm((prev) => ({
-            ...prev,
+          updateForm({
             latitude,
             longitude,
-          }))
+          })
         }
       />
 
       <label className="flex flex-col gap-2 text-sm">
         <span className="font-medium text-slate-700">URL de origen</span>
-        <input className={fieldClass()} value={form.source_url} onChange={(e) => setForm({ ...form, source_url: e.target.value })} />
+        <input className={fieldClass()} value={form.source_url} onChange={(e) => updateForm({ source_url: e.target.value })} />
       </label>
 
       <div className="grid gap-3 md:grid-cols-3">
         {[
           ["fuel_especial", "Especial"],
           ["fuel_premium", "Premium"],
-          ["fuel_diesel", "Diésel"],
+          ["fuel_diesel", "Diesel"],
           ["fuel_gnv", "GNV"],
           ["is_active", "Activa"],
           ["is_verified", "Verificada"],
@@ -326,7 +511,7 @@ export function StationForm({ initial, mode, stationId }: Props) {
             <input
               type="checkbox"
               checked={(form as Record<string, boolean | string>)[key] as boolean}
-              onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
+              onChange={(e) => updateForm({ [key]: e.target.checked } as Partial<typeof form>)}
             />
             {label}
           </label>
@@ -335,12 +520,12 @@ export function StationForm({ initial, mode, stationId }: Props) {
 
       <label className="flex flex-col gap-2 text-sm">
         <span className="font-medium text-slate-700">Notas</span>
-        <textarea className={fieldClass()} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={4} />
+        <textarea className={fieldClass()} value={form.notes} onChange={(e) => updateForm({ notes: e.target.value })} rows={4} />
       </label>
 
       <div className="flex flex-wrap items-center gap-3">
         <button disabled={saving} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">
-          {saving ? "Guardando..." : mode === "create" ? "Crear estación" : "Guardar cambios"}
+          {saving ? "Guardando..." : mode === "create" ? "Crear estacion" : "Guardar cambios"}
         </button>
         {message ? <span className="text-sm text-emerald-700">{message}</span> : null}
         {error ? <span className="text-sm text-red-700">{error}</span> : null}
