@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { RatingStars } from "@/components/rating-stars";
 import { ReportForm } from "@/components/report-form";
+import { trackAppEvent } from "@/lib/analytics";
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
 import {
   formatAvailability,
@@ -49,15 +50,6 @@ type SearchResult =
       searchRank: number;
       service: SupportServiceWithDistance;
     };
-
-const categoryOptions: Array<{ label: string; value: CategoryFilter }> = [
-  { label: "Todo", value: "all" },
-  { label: "Surtidores", value: "stations" },
-  { label: "Taller", value: "taller_mecanico" },
-  { label: "Grua", value: "grua" },
-  { label: "Auxilio", value: "servicio_mecanico" },
-  { label: "Aditivos", value: "aditivos" },
-];
 
 function normalizeSearchValue(value: string) {
   return value
@@ -107,16 +99,18 @@ export function Dashboard({
   initialServices,
   reportCount = 0,
 }: DashboardProps) {
+  const categoryFilter: CategoryFilter = "all";
   const [stations, setStations] = useState<StationWithLatest[]>(initialStations);
   const [services, setServices] = useState<SupportService[]>(initialServices);
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationState, setLocationState] = useState<
     "idle" | "loading" | "granted" | "denied" | "error"
   >("idle");
+  const [didAutoPickNearest, setDidAutoPickNearest] = useState(false);
+  const [requestedInitialLocation, setRequestedInitialLocation] = useState(false);
 
   useEffect(() => {
     setStations(initialStations);
@@ -125,6 +119,17 @@ export function Dashboard({
   useEffect(() => {
     setServices(initialServices);
   }, [initialServices]);
+
+  useEffect(() => {
+    trackAppEvent({
+      eventType: "page_view_home",
+      targetType: "system",
+      metadata: {
+        initial_services: initialServices.length,
+        initial_stations: initialStations.length,
+      },
+    });
+  }, [initialServices.length, initialStations.length]);
 
   const stationsWithDistance = useMemo(() => {
     return stations.map((station) => {
@@ -263,6 +268,14 @@ export function Dashboard({
   }, [results, selectedKey]);
 
   useEffect(() => {
+    if (!userLocation || locationState !== "granted" || didAutoPickNearest) return;
+    if (!results[0]) return;
+
+    setSelectedKey(results[0].key);
+    setDidAutoPickNearest(true);
+  }, [didAutoPickNearest, locationState, results, userLocation]);
+
+  useEffect(() => {
     setShowReportForm(false);
   }, [selectedKey]);
 
@@ -281,13 +294,14 @@ export function Dashboard({
     [results]
   );
 
-  const handleUseMyLocation = () => {
+  const handleUseMyLocation = (options?: { silent?: boolean }) => {
     if (!navigator.geolocation) {
       setLocationState("error");
       return;
     }
 
     setLocationState("loading");
+    setDidAutoPickNearest(false);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -298,7 +312,7 @@ export function Dashboard({
         setLocationState("granted");
       },
       () => {
-        setLocationState("denied");
+        setLocationState(options?.silent ? "idle" : "denied");
       },
       {
         enableHighAccuracy: true,
@@ -306,6 +320,68 @@ export function Dashboard({
         maximumAge: 300000,
       }
     );
+  };
+
+  useEffect(() => {
+    if (requestedInitialLocation || typeof navigator === "undefined") return;
+    setRequestedInitialLocation(true);
+    handleUseMyLocation({ silent: true });
+  }, [requestedInitialLocation]);
+
+  const handleSelectResult = (
+    key: string,
+    source: "chip" | "map" | "popup"
+  ) => {
+    setSelectedKey(key);
+
+    const item = results.find((candidate) => candidate.key === key);
+    if (!item) return;
+
+    trackAppEvent({
+      eventType: source === "map" ? "map_select" : "result_select",
+      targetId: item.kind === "station" ? item.station.id : item.service.id,
+      targetName: item.kind === "station" ? item.station.name : item.service.name,
+      targetType: item.kind,
+      metadata: {
+        source,
+      },
+    });
+  };
+
+  const handleRequestReportStation = (
+    stationId: number,
+    source: "detail" | "popup"
+  ) => {
+    const key = `station-${stationId}`;
+    const station = stations.find((item) => item.id === stationId);
+    setSelectedKey(key);
+    setShowReportForm(true);
+    trackAppEvent({
+      eventType: "open_report_form",
+      targetId: stationId,
+      targetName: station?.name ?? null,
+      targetType: "station",
+      metadata: {
+        source,
+      },
+    });
+  };
+
+  const trackServiceContact = (
+    service: SupportService,
+    eventType: "contact_whatsapp" | "contact_phone" | "open_service_link",
+    source: "card" | "popup"
+  ) => {
+    trackAppEvent({
+      eventType,
+      targetId: service.id,
+      targetName: service.name,
+      targetType: "service",
+      metadata: {
+        category: service.category,
+        source,
+      },
+    });
   };
 
   const handleSubmitReport = async (input: ReportInput) => {
@@ -371,38 +447,30 @@ export function Dashboard({
             />
             <button
               type="button"
-              onClick={handleUseMyLocation}
+              onClick={() => handleUseMyLocation()}
               className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               {locationState === "loading" ? "Ubicando..." : "Usar mi ubicacion"}
             </button>
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categoryOptions.map((option) => {
-              const isActive = categoryFilter === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setCategoryFilter(option.value)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    isActive
-                      ? "bg-slate-900 text-white"
-                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
+            <a
+              href="/sumate"
+              onClick={() =>
+                trackAppEvent({
+                  eventType: "open_vendor_join",
+                  targetType: "vendor_request",
+                })
+              }
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Quiero publicar
+            </a>
           </div>
 
           <div className="text-xs text-slate-500">
-            {locationState === "granted" && "Ubicacion activada. Se priorizan resultados cercanos."}
+            {locationState === "granted" && "Ubicacion activada. Se priorizan los puntos mas cercanos y el mapa toma tu zona actual."}
             {locationState === "denied" && "La ubicacion fue denegada. El mapa sigue funcionando."}
             {locationState === "error" && "No se pudo obtener tu ubicacion en este navegador."}
-            {locationState === "idle" && "Toca un marcador para ver una ficha simple del punto."}
+            {locationState === "idle" && "Busca o toca un marcador para ver estado, reputacion y contacto rapido."}
           </div>
         </div>
       </section>
@@ -420,7 +488,7 @@ export function Dashboard({
               <button
                 key={item.key}
                 type="button"
-                onClick={() => setSelectedKey(item.key)}
+                onClick={() => handleSelectResult(item.key, "chip")}
                 className={`min-w-[150px] rounded-2xl border px-4 py-3 text-left shadow-sm transition ${
                   selectedKey === item.key
                     ? "border-slate-900 bg-slate-900 text-white"
@@ -447,7 +515,8 @@ export function Dashboard({
             services={mapServices}
             stations={mapStations}
             selectedKey={selectedKey}
-            onSelectKey={setSelectedKey}
+            onRequestReportStation={handleRequestReportStation}
+            onSelectKey={(key) => handleSelectResult(key, "map")}
             userLocation={userLocation}
           />
         </div>
@@ -529,10 +598,16 @@ export function Dashboard({
             <div className="rounded-2xl border border-slate-200 p-4">
               <button
                 type="button"
-                onClick={() => setShowReportForm((value) => !value)}
+                onClick={() => {
+                  if (showReportForm) {
+                    setShowReportForm(false);
+                    return;
+                  }
+                  handleRequestReportStation(selectedResult.station.id, "detail");
+                }}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                {showReportForm ? "Ocultar reporte" : "Reportar estado de este surtidor"}
+                {showReportForm ? "Ocultar formulario" : "Informar estado o reportar"}
               </button>
 
               {showReportForm ? (
@@ -618,6 +693,9 @@ export function Dashboard({
                   href={buildWhatsAppHref(
                     selectedResult.service.whatsapp_number ?? selectedResult.service.phone
                   )}
+                  onClick={() =>
+                    trackServiceContact(selectedResult.service, "contact_whatsapp", "card")
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-700"
@@ -633,6 +711,9 @@ export function Dashboard({
                   href={buildTelHref(
                     selectedResult.service.phone ?? selectedResult.service.whatsapp_number
                   )}
+                  onClick={() =>
+                    trackServiceContact(selectedResult.service, "contact_phone", "card")
+                  }
                   className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Llamar
@@ -642,6 +723,9 @@ export function Dashboard({
               {normalizeExternalUrl(selectedResult.service.website_url) ? (
                 <a
                   href={normalizeExternalUrl(selectedResult.service.website_url)}
+                  onClick={() =>
+                    trackServiceContact(selectedResult.service, "open_service_link", "card")
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"

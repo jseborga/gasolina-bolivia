@@ -74,6 +74,7 @@ export function normalizeServiceAdminInput(body: ServiceAdminInput) {
     city: normalizeText(body.city),
     description: normalizeText(body.description),
     is_active: body.is_active ?? true,
+    is_published: body.is_published ?? false,
     is_verified: body.is_verified ?? false,
     latitude,
     longitude,

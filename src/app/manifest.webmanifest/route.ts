@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 
 export function GET() {
   return NextResponse.json({
-    name: "SurtiMapa",
+    name: "SurtiMapa Bolivia",
     short_name: "SurtiMapa",
-    description: "Estado colaborativo de surtidores y filas en La Paz",
+    description: "Mapa de gasolina, surtidores, talleres, gruas, auxilio mecanico y aditivos en Bolivia",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

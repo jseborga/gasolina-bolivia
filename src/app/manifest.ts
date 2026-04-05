@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "SurtiMapa",
+    name: "SurtiMapa Bolivia",
     short_name: "SurtiMapa",
-    description: "Estado colaborativo de surtidores y filas en La Paz",
+    description: "Mapa de gasolina, surtidores, talleres, gruas, auxilio mecanico y aditivos en Bolivia",
     start_url: "/",
     display: "standalone",
     background_color: "#0f172a",

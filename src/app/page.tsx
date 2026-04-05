@@ -1,12 +1,27 @@
+import type { Metadata } from "next";
 import { Dashboard } from "@/components/dashboard";
+import { getAppBaseUrl } from "@/lib/app-url";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   getMissingSupportServicesMessage,
+  isMissingColumnError,
   isMissingTableError,
 } from "@/lib/supabase-errors";
+import {
+  SUPPORT_SERVICE_BASE_SELECT,
+  SUPPORT_SERVICE_OPTIONAL_COLUMNS,
+  SUPPORT_SERVICE_SELECT,
+  withSupportServiceDefaults,
+} from "@/lib/support-services-compat";
 import { Report, Station, StationWithLatest, SupportService } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Mapa de gasolina, talleres, gruas y aditivos en Bolivia",
+  description:
+    "Ubica surtidores activos, reporta estado de gasolina y encuentra talleres, gruas, auxilio mecanico y aditivos cerca de tu ubicacion.",
+};
 
 export default async function HomePage() {
   const supabase = getSupabaseClient();
@@ -21,20 +36,33 @@ export default async function HomePage() {
     );
   }
 
-  const [
-    { data: stationsData, error: stationsError },
-    { data: reportsData, error: reportsError },
-    { data: servicesData, error: servicesError },
-  ] = await Promise.all([
+  const [{ data: stationsData, error: stationsError }, { data: reportsData, error: reportsError }] =
+    await Promise.all([
     supabase.from("stations").select("*").eq("is_active", true).order("name"),
     supabase.from("reports").select("*").order("created_at", { ascending: false }),
-    supabase
+  ]);
+
+  let { data: servicesData, error: servicesError } = await supabase
+    .from("support_services")
+    .select(SUPPORT_SERVICE_SELECT)
+    .eq("is_active", true)
+    .eq("is_published", true)
+    .order("category")
+    .order("name");
+
+  if (isMissingColumnError(servicesError, "support_services", SUPPORT_SERVICE_OPTIONAL_COLUMNS)) {
+    const legacyResult = await supabase
       .from("support_services")
-      .select("*")
+      .select(SUPPORT_SERVICE_BASE_SELECT)
       .eq("is_active", true)
       .order("category")
-      .order("name"),
-  ]);
+      .order("name");
+
+    servicesData = (legacyResult.data ?? []).map((service) =>
+      withSupportServiceDefaults(service as Partial<SupportService>)
+    );
+    servicesError = legacyResult.error;
+  }
 
   const servicesTableMissing = isMissingTableError(servicesError, "support_services");
 
@@ -63,8 +91,27 @@ export default async function HomePage() {
     latestReport: latestByStation.get(station.id) ?? null,
   }));
 
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    description:
+      "Mapa colaborativo para encontrar gasolina, estaciones de servicio, talleres, gruas y aditivos en Bolivia.",
+    inLanguage: "es-BO",
+    name: "SurtiMapa Bolivia",
+    potentialAction: {
+      "@type": "SearchAction",
+      query: "required name=search_term_string",
+      target: `${getAppBaseUrl()}/?q={search_term_string}`,
+    },
+    url: getAppBaseUrl(),
+  };
+
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       {servicesTableMissing ? (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           {getMissingSupportServicesMessage()}

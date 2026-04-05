@@ -1,7 +1,14 @@
 import { notFound } from 'next/navigation';
+import {
+  STATION_ADMIN_SELECT,
+  STATION_BASE_SELECT,
+  STATION_OPTIONAL_COLUMNS,
+  withStationOptionalDefaults,
+} from '@/lib/admin-stations-compat';
 import { StationForm } from '@/components/admin/station-form';
 import { requireAdminSession } from '@/lib/admin-auth';
 import type { StationAdminRow } from '@/lib/admin-types';
+import { isMissingColumnError } from '@/lib/supabase-errors';
 import { getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -10,18 +17,57 @@ export default async function EditStationPage({ params }: { params: Promise<{ id
   const { id } = await params;
   await requireAdminSession(`/admin/stations/${id}`);
 
+  const stationId = Number(id);
+  if (!Number.isFinite(stationId)) {
+    return notFound();
+  }
+
   try {
     const supabase = getAdminSupabase();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('stations')
-      .select('id,name,zone,city,address,latitude,longitude,reputation_score,reputation_votes,fuel_especial,fuel_premium,fuel_diesel,fuel_gnv,is_active,is_verified,source_url,notes,license_code,created_at,updated_at')
-      .eq('id', Number(id))
+      .select(STATION_ADMIN_SELECT)
+      .eq('id', stationId)
       .single();
 
-    if (error || !data) return notFound();
+    if (isMissingColumnError(error, 'stations', STATION_OPTIONAL_COLUMNS)) {
+      const legacyResult = await supabase
+        .from('stations')
+        .select(STATION_BASE_SELECT)
+        .eq('id', stationId)
+        .single();
 
-    return <StationForm mode="edit" stationId={Number(id)} initial={data as StationAdminRow} />;
-  } catch {
-    return notFound();
+      if (legacyResult.error) {
+        return (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+            Error al cargar la estacion: {legacyResult.error.message}
+          </div>
+        );
+      }
+
+      data = legacyResult.data
+        ? withStationOptionalDefaults(legacyResult.data as Partial<StationAdminRow>)
+        : null;
+      error = null;
+    }
+
+    if (error) {
+      return (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+          Error al cargar la estacion: {error.message}
+        </div>
+      );
+    }
+
+    if (!data) return notFound();
+
+    return <StationForm mode="edit" stationId={stationId} initial={data as StationAdminRow} />;
+  } catch (error) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+        Error al cargar la estacion:{' '}
+        {error instanceof Error ? error.message : 'Error inesperado'}
+      </div>
+    );
   }
 }

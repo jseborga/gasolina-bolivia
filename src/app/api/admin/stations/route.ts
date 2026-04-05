@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
+import {
+  STATION_OPTIONAL_COLUMNS,
+  stripStationOptionalFields,
+  withStationOptionalDefaults,
+} from '@/lib/admin-stations-compat';
 import { getOptionalAdminSession } from '@/lib/admin-auth';
 import { normalizeStationAdminInput } from '@/lib/admin-stations';
-import type { StationAdminInput } from '@/lib/admin-types';
+import type { StationAdminInput, StationAdminRow } from '@/lib/admin-types';
+import { isMissingColumnError } from '@/lib/supabase-errors';
 import { getAdminSupabase } from '@/lib/supabase-server';
 
 export async function POST(request: Request) {
@@ -18,7 +24,21 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase.from('stations').insert(payload).select().single();
+    let { data, error } = await supabase.from('stations').insert(payload).select().single();
+
+    if (isMissingColumnError(error, 'stations', STATION_OPTIONAL_COLUMNS)) {
+      const legacyResult = await supabase
+        .from('stations')
+        .insert(stripStationOptionalFields(payload))
+        .select()
+        .single();
+
+      data = legacyResult.data
+        ? withStationOptionalDefaults(legacyResult.data as Partial<StationAdminRow>)
+        : null;
+      error = legacyResult.error;
+    }
+
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true, station: data });
   } catch (error) {

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireAdminSession } from '@/lib/admin-auth';
+import { isMissingTableError } from '@/lib/supabase-errors';
 import { getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -8,27 +9,48 @@ export default async function AdminHomePage() {
   await requireAdminSession('/admin');
 
   let stats = {
+    events: 0,
     missingCoords: 0,
     total: 0,
     unverified: 0,
+    vendorRequests: 0,
   };
   let loadError: string | null = null;
 
   try {
     const supabase = getAdminSupabase();
-    const { data, error } = await supabase
-      .from('stations')
-      .select('id,latitude,longitude,is_verified');
+    const [
+      { data: stationsData, error: stationsError },
+      { count: eventsCount, error: eventsError },
+      { count: vendorRequestsCount, error: vendorRequestsError },
+    ] = await Promise.all([
+      supabase.from('stations').select('id,latitude,longitude,is_verified'),
+      supabase.from('app_events').select('*', { count: 'exact', head: true }),
+      supabase.from('vendor_requests').select('*', { count: 'exact', head: true }),
+    ]);
 
-    if (error) {
-      loadError = error.message;
+    if (stationsError) {
+      loadError = stationsError.message;
     } else {
-      const rows = data ?? [];
+      const rows = stationsData ?? [];
       stats = {
+        events: isMissingTableError(eventsError, 'app_events') ? 0 : eventsCount ?? 0,
         missingCoords: rows.filter((row) => row.latitude == null || row.longitude == null).length,
         total: rows.length,
         unverified: rows.filter((row) => !row.is_verified).length,
+        vendorRequests: isMissingTableError(vendorRequestsError, 'vendor_requests')
+          ? 0
+          : vendorRequestsCount ?? 0,
       };
+
+      if (eventsError && !isMissingTableError(eventsError, 'app_events')) {
+        loadError = eventsError.message;
+      } else if (
+        vendorRequestsError &&
+        !isMissingTableError(vendorRequestsError, 'vendor_requests')
+      ) {
+        loadError = vendorRequestsError.message;
+      }
     }
   } catch (error) {
     loadError =
@@ -45,7 +67,7 @@ export default async function AdminHomePage() {
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-5">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">Estaciones</p>
           <p className="mt-2 text-3xl font-semibold text-slate-900">{stats.total}</p>
@@ -57,6 +79,14 @@ export default async function AdminHomePage() {
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">Pendientes de verificar</p>
           <p className="mt-2 text-3xl font-semibold text-slate-900">{stats.unverified}</p>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">Eventos</p>
+          <p className="mt-2 text-3xl font-semibold text-slate-900">{stats.events}</p>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">Solicitudes comerciales</p>
+          <p className="mt-2 text-3xl font-semibold text-slate-900">{stats.vendorRequests}</p>
         </div>
       </section>
 
@@ -97,12 +127,26 @@ export default async function AdminHomePage() {
             Carga talleres mecánicos, grúas, servicio mecánico móvil y venta de aditivos con contacto directo.
           </p>
           <div className="mt-5">
-            <Link
-              href="/admin/services"
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Abrir admin de servicios
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/admin/services"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Abrir admin de servicios
+              </Link>
+              <Link
+                href="/admin/vendor-requests"
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Ver solicitudes
+              </Link>
+              <Link
+                href="/admin/analytics"
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Ver analytics
+              </Link>
+            </div>
           </div>
         </section>
 

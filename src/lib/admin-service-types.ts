@@ -17,6 +17,7 @@ export type ServiceAdminInput = {
   rating_score?: number | null;
   rating_count?: number | null;
   is_active?: boolean;
+  is_published?: boolean;
   is_verified?: boolean;
   source_url?: string;
   notes?: string;
@@ -40,6 +41,7 @@ export type ServiceAdminRow = {
   rating_score: number | null;
   rating_count: number | null;
   is_active: boolean;
+  is_published: boolean;
   is_verified: boolean;
   source_url: string | null;
   notes: string | null;

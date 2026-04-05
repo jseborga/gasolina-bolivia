@@ -4,8 +4,10 @@ import { useEffect } from "react";
 import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { trackAppEvent } from "@/lib/analytics";
 import { RatingStars } from "@/components/rating-stars";
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
+import { formatAvailability, formatFuelType, formatQueue } from "@/lib/reporting";
 import { getSupportServiceLabel } from "@/lib/services";
 import type {
   StationWithLatest,
@@ -18,6 +20,7 @@ type StationsMapProps = {
   stations: (StationWithLatest & { distanceKm?: number | null })[];
   selectedKey: string | null;
   onSelectKey: (key: string) => void;
+  onRequestReportStation: (stationId: number, source: "detail" | "popup") => void;
   userLocation: { lat: number; lng: number } | null;
 };
 
@@ -131,6 +134,7 @@ export default function StationsMap({
   stations,
   selectedKey,
   onSelectKey,
+  onRequestReportStation,
   userLocation,
 }: StationsMapProps) {
   const defaultCenter: [number, number] = userLocation
@@ -198,6 +202,18 @@ export default function StationsMap({
                     {whatsappHref && (
                       <a
                         href={whatsappHref}
+                        onClick={() =>
+                          trackAppEvent({
+                            eventType: "contact_whatsapp",
+                            targetId: service.id,
+                            targetName: service.name,
+                            targetType: "service",
+                            metadata: {
+                              category: service.category,
+                              source: "popup",
+                            },
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
@@ -208,6 +224,18 @@ export default function StationsMap({
                     {phoneHref && (
                       <a
                         href={phoneHref}
+                        onClick={() =>
+                          trackAppEvent({
+                            eventType: "contact_phone",
+                            targetId: service.id,
+                            targetName: service.name,
+                            targetType: "service",
+                            metadata: {
+                              category: service.category,
+                              source: "popup",
+                            },
+                          })
+                        }
                         className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
                       >
                         Llamar
@@ -248,11 +276,18 @@ export default function StationsMap({
                     count={station.reputation_votes}
                   />
                   <div>
-                    Estado: {station.latestReport?.availability_status ?? "sin_dato"}
+                    Estado: {formatAvailability(station.latestReport?.availability_status)}
                   </div>
-                  <div>Combustible: {station.latestReport?.fuel_type ?? "Sin dato"}</div>
-                  <div>Fila: {station.latestReport?.queue_status ?? "sin_dato"}</div>
+                  <div>Combustible: {formatFuelType(station.latestReport?.fuel_type)}</div>
+                  <div>Fila: {formatQueue(station.latestReport?.queue_status)}</div>
                   <div>{station.address || "Sin direccion"}</div>
+                  <button
+                    type="button"
+                    onClick={() => onRequestReportStation(station.id, "popup")}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                  >
+                    Informar estado
+                  </button>
                 </div>
               </Popup>
             </Marker>

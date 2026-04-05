@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { parseMapsInput, type ParsedMapsInput } from "@/lib/google-maps";
 import type {
   StationAdminInput,
@@ -72,6 +72,7 @@ function buildResolveMessage(parsed: ParsedMapsInput) {
 
 export function StationForm({ initial, mode, stationId }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     zone: initial?.zone ?? "",
@@ -101,6 +102,18 @@ export function StationForm({ initial, mode, stationId }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const parsedPreview = useMemo(() => parseMapsInput(form.maps_input), [form.maps_input]);
+  const auditSuggestion = useMemo(() => {
+    const suggestedLatitude = Number(searchParams.get("suggestedLat"));
+    const suggestedLongitude = Number(searchParams.get("suggestedLng"));
+    const distanceKm = Number(searchParams.get("distanceKm"));
+
+    return {
+      address: searchParams.get("suggestedAddress")?.trim() || "",
+      distanceKm: Number.isFinite(distanceKm) ? distanceKm : null,
+      latitude: Number.isFinite(suggestedLatitude) ? suggestedLatitude : null,
+      longitude: Number.isFinite(suggestedLongitude) ? suggestedLongitude : null,
+    };
+  }, [searchParams]);
 
   const clearFeedback = () => {
     setError(null);
@@ -550,6 +563,62 @@ export function StationForm({ initial, mode, stationId }: Props) {
                 <p className="mt-2 text-sm text-slate-500">No se pudo estimar una calle para estas coordenadas.</p>
               )}
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {mode === "edit" &&
+      (auditSuggestion.latitude != null || auditSuggestion.longitude != null || auditSuggestion.address) ? (
+        <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <div>
+            <p className="text-sm font-semibold text-emerald-900">
+              Referencia cargada desde auditoria
+            </p>
+            <p className="mt-1 text-xs text-emerald-800">
+              Usa este punto sugerido para comparar en el mapa antes de guardar.
+              {auditSuggestion.distanceKm != null
+                ? ` Diferencia detectada: ${formatDistance(auditSuggestion.distanceKm)}.`
+                : ""}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-xs text-emerald-900">
+            {auditSuggestion.latitude != null && auditSuggestion.longitude != null ? (
+              <span className="rounded-full bg-white/70 px-2.5 py-1">
+                Punto sugerido {auditSuggestion.latitude.toFixed(6)}, {auditSuggestion.longitude.toFixed(6)}
+              </span>
+            ) : null}
+            {auditSuggestion.address ? (
+              <span className="rounded-full bg-white/70 px-2.5 py-1">
+                Direccion sugerida disponible
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {auditSuggestion.latitude != null && auditSuggestion.longitude != null ? (
+              <button
+                type="button"
+                onClick={() =>
+                  updateForm({
+                    latitude: auditSuggestion.latitude.toFixed(6),
+                    longitude: auditSuggestion.longitude.toFixed(6),
+                  })
+                }
+                className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+              >
+                Usar punto sugerido
+              </button>
+            ) : null}
+            {auditSuggestion.address ? (
+              <button
+                type="button"
+                onClick={() => updateForm({ address: auditSuggestion.address })}
+                className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+              >
+                Usar direccion sugerida
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}

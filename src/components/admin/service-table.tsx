@@ -103,7 +103,7 @@ export function ServiceTable({ services }: { services: ServiceAdminRow[] }) {
                   {[service.phone, service.whatsapp_number].filter(Boolean).join(' / ') || '-'}
                 </td>
                 <td className="px-4 py-4 text-slate-600">
-                  {service.is_active ? 'Activo' : 'Inactivo'} | {service.is_verified ? 'Verificado' : 'Pendiente'}
+                  {service.is_active ? 'Activo' : 'Inactivo'} | {service.is_published ? 'Publicado' : 'Borrador'} | {service.is_verified ? 'Verificado' : 'Pendiente'}
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex flex-wrap gap-2">

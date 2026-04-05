@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getOptionalAdminSession } from '@/lib/admin-auth';
 import { normalizeServiceAdminInput } from '@/lib/admin-services';
-import type { ServiceAdminInput } from '@/lib/admin-service-types';
+import type { ServiceAdminInput, ServiceAdminRow } from '@/lib/admin-service-types';
+import {
+  stripSupportServiceOptionalFields,
+  SUPPORT_SERVICE_OPTIONAL_COLUMNS,
+  withSupportServiceDefaults,
+} from '@/lib/support-services-compat';
 import {
   getMissingSupportServicesMessage,
+  isMissingColumnError,
   isMissingTableError,
 } from '@/lib/supabase-errors';
 import { getAdminSupabase } from '@/lib/supabase-server';
@@ -26,12 +32,26 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('support_services')
       .update(payload)
       .eq('id', Number(id))
       .select()
       .single();
+
+    if (isMissingColumnError(error, 'support_services', SUPPORT_SERVICE_OPTIONAL_COLUMNS)) {
+      const legacyResult = await supabase
+        .from('support_services')
+        .update(stripSupportServiceOptionalFields(payload))
+        .eq('id', Number(id))
+        .select()
+        .single();
+
+      data = legacyResult.data
+        ? withSupportServiceDefaults(legacyResult.data as Partial<ServiceAdminRow>)
+        : null;
+      error = legacyResult.error;
+    }
 
     if (isMissingTableError(error, 'support_services')) {
       return NextResponse.json({ error: getMissingSupportServicesMessage() }, { status: 400 });

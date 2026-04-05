@@ -1,6 +1,13 @@
 import { StationTable } from '@/components/admin/station-table';
+import {
+  STATION_ADMIN_SELECT,
+  STATION_BASE_SELECT,
+  STATION_OPTIONAL_COLUMNS,
+  withStationOptionalDefaults,
+} from '@/lib/admin-stations-compat';
 import { requireAdminSession } from '@/lib/admin-auth';
 import type { StationAdminRow } from '@/lib/admin-types';
+import { isMissingColumnError } from '@/lib/supabase-errors';
 import { getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -10,10 +17,22 @@ export default async function AdminStationsPage() {
 
   try {
     const supabase = getAdminSupabase();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('stations')
-      .select('id,name,zone,city,address,latitude,longitude,reputation_score,reputation_votes,fuel_especial,fuel_premium,fuel_diesel,fuel_gnv,is_active,is_verified,source_url,notes,license_code,created_at,updated_at')
+      .select(STATION_ADMIN_SELECT)
       .order('name', { ascending: true });
+
+    if (isMissingColumnError(error, 'stations', STATION_OPTIONAL_COLUMNS)) {
+      const legacyResult = await supabase
+        .from('stations')
+        .select(STATION_BASE_SELECT)
+        .order('name', { ascending: true });
+
+      data = (legacyResult.data ?? []).map((station) =>
+        withStationOptionalDefaults(station as Partial<StationAdminRow>)
+      );
+      error = legacyResult.error;
+    }
 
     if (error) {
       return (

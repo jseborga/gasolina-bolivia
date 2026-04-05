@@ -66,6 +66,7 @@ export type SupportService = {
   rating_score: number | null;
   rating_count: number | null;
   is_active: boolean;
+  is_published?: boolean;
   is_verified: boolean;
   source_url: string | null;
   notes: string | null;
@@ -73,4 +74,40 @@ export type SupportService = {
 
 export type SupportServiceWithDistance = SupportService & {
   distanceKm?: number | null;
+};
+
+export type VendorRequestCategory =
+  | SupportServiceCategory
+  | "estacion";
+
+export type VendorRequestInput = {
+  name: string;
+  email: string;
+  phone?: string;
+  business_name?: string;
+  category: VendorRequestCategory;
+  city?: string;
+  notes?: string;
+};
+
+export type VendorRequest = VendorRequestInput & {
+  id: number;
+  status: "pending" | "reviewing" | "approved" | "rejected";
+  created_at: string;
+  updated_at: string;
+};
+
+export type AppEvent = {
+  id: number;
+  created_at: string;
+  event_type: string;
+  target_type: string;
+  target_id: number | null;
+  target_name: string | null;
+  path: string | null;
+  referrer: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  visitor_id: string | null;
+  metadata: Record<string, unknown> | null;
 };

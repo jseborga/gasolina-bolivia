@@ -20,6 +20,7 @@ const CREATE_BASE_STATE = {
   city: "La Paz",
   description: "",
   is_active: true,
+  is_published: false,
   is_verified: false,
   latitude: "",
   longitude: "",
@@ -66,6 +67,7 @@ export function ServiceForm({ initial, mode, serviceId }: Props) {
     rating_score: initial?.rating_score?.toString() ?? "0",
     rating_count: initial?.rating_count?.toString() ?? "0",
     is_active: initial?.is_active ?? true,
+    is_published: initial?.is_published ?? true,
     is_verified: initial?.is_verified ?? false,
     source_url: initial?.source_url ?? "",
     notes: initial?.notes ?? "",
@@ -219,6 +221,7 @@ export function ServiceForm({ initial, mode, serviceId }: Props) {
       rating_score: ratingScore,
       rating_count: Math.round(ratingCount),
       is_active: form.is_active,
+      is_published: form.is_published,
       is_verified: form.is_verified,
       source_url: form.source_url.trim() || undefined,
       notes: form.notes.trim() || undefined,
@@ -523,6 +526,7 @@ export function ServiceForm({ initial, mode, serviceId }: Props) {
       <div className="grid gap-3 md:grid-cols-2">
         {[
           ["is_active", "Activo"],
+          ["is_published", "Publicado en la app"],
           ["is_verified", "Verificado"],
         ].map(([key, label]) => (
           <label
