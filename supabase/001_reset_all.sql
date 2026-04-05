@@ -22,35 +22,19 @@ create table reports (
   created_at timestamptz not null default now()
 );
 
-insert into stations (name, zone, address, latitude, longitude, is_active)
-values
-  ('Surtidor El Volcán', 'Miraflores', 'Av. Busch, Miraflores', -16.5000, -68.1200, true),
-  ('Surtidor Sopocachi', 'Sopocachi', 'Av. 20 de Octubre', -16.5145, -68.1295, true),
-  ('Surtidor Obrajes', 'Obrajes', 'Av. Hernando Siles', -16.5230, -68.1130, true);
+insert into stations (name, zone, address, latitude, longitude, is_active) values
+('Surtidor El Volcán', 'Miraflores', 'Av. Busch, Miraflores', -16.5000, -68.1200, true),
+('Surtidor Sopocachi', 'Sopocachi', 'Av. 20 de Octubre', -16.5145, -68.1295, true),
+('Surtidor Obrajes', 'Obrajes', 'Av. Hernando Siles', -16.5230, -68.1130, true);
 
-insert into reports (station_id, fuel_type, availability_status, queue_status, comment)
-values
-  (1, 'especial', 'si_hay', 'media', 'Todavía hay, pero la fila avanza lento.'),
-  (2, 'premium', 'no_hay', 'larga', 'No hay premium por ahora.'),
-  (3, 'diesel', 'si_hay', 'corta', 'Atención rápida.');
+insert into reports (station_id, fuel_type, availability_status, queue_status, comment, created_at) values
+(1, 'especial', 'si_hay', 'media', 'Avanza, pero con espera moderada.', now() - interval '20 minutes'),
+(2, 'premium', 'no_hay', 'larga', 'Fila pesada y sin premium por ahora.', now() - interval '50 minutes'),
+(3, 'diesel', 'sin_dato', 'sin_dato', 'Sin reporte claro todavía.', now() - interval '2 hours');
 
 alter table stations enable row level security;
 alter table reports enable row level security;
 
-create policy "public can read stations"
-on stations
-for select
-to anon, authenticated
-using (true);
-
-create policy "public can read reports"
-on reports
-for select
-to anon, authenticated
-using (true);
-
-create policy "public can insert reports"
-on reports
-for insert
-to anon, authenticated
-with check (true);
+create policy "public can read stations" on stations for select to anon, authenticated using (true);
+create policy "public can read reports" on reports for select to anon, authenticated using (true);
+create policy "public can insert reports" on reports for insert to anon, authenticated with check (true);

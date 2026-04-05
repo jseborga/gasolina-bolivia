@@ -1,72 +1,42 @@
-export function getAvailabilityLabel(value?: string | null) {
-  if (value === "si_hay") return "Sí hay";
-  if (value === "no_hay") return "No hay";
-  return "Sin dato";
-}
+import { AvailabilityStatus, QueueStatus, Report } from "./types";
 
-export function getFuelLabel(value?: string | null) {
-  if (!value) return "Sin dato";
-  if (value === "especial") return "Especial";
-  if (value === "premium") return "Premium";
-  if (value === "diesel") return "Diésel";
-  return value;
-}
-
-export function getQueueLabel(value?: string | null) {
-  if (!value || value === "sin_dato") return "Sin dato";
-  if (value === "corta") return "Fila corta";
-  if (value === "media") return "Fila media";
-  if (value === "larga") return "Fila larga";
-  return value;
-}
-
-export function getReportAgeMinutes(createdAt?: string | null) {
-  if (!createdAt) return null;
-  const value = new Date(createdAt).getTime();
-  if (Number.isNaN(value)) return null;
-  return Math.round((Date.now() - value) / 60000);
-}
-
-export function isRecentReport(createdAt?: string | null) {
-  const age = getReportAgeMinutes(createdAt);
-  return age != null && age <= 30;
-}
-
-export function getFreshness(createdAt?: string | null) {
-  const age = getReportAgeMinutes(createdAt);
-
-  if (age == null) {
-    return {
-      label: "Sin reporte",
-      tone: "neutral",
-    } as const;
+export function formatAvailability(status: AvailabilityStatus) {
+  switch (status) {
+    case "si_hay": return "Sí hay";
+    case "no_hay": return "No hay";
+    default: return "Sin dato";
   }
-
-  if (age <= 30) {
-    return {
-      label: "Reciente",
-      tone: "fresh",
-    } as const;
-  }
-
-  if (age <= 90) {
-    return {
-      label: "Aún útil",
-      tone: "warm",
-    } as const;
-  }
-
-  return {
-    label: "Desactualizado",
-    tone: "stale",
-  } as const;
 }
 
-export function formatReportDate(value?: string | null) {
-  if (!value) return "Sin reporte";
-  try {
-    return new Date(value).toLocaleString("es-BO");
-  } catch {
-    return value;
+export function formatQueue(status: QueueStatus) {
+  switch (status) {
+    case "corta": return "Fila corta";
+    case "media": return "Fila media";
+    case "larga": return "Fila larga";
+    default: return "Sin dato";
   }
+}
+
+export function formatFuelType(fuel: Report["fuel_type"]) {
+  switch (fuel) {
+    case "diesel": return "Diésel";
+    case "premium": return "Premium";
+    default: return "Especial";
+  }
+}
+
+export function getFreshness(reportDate: string) {
+  const diffMinutes = (Date.now() - new Date(reportDate).getTime()) / 60000;
+  if (diffMinutes <= 30) return { label: "Reciente", className: "bg-emerald-100 text-emerald-700" };
+  if (diffMinutes <= 90) return { label: "Todavía útil", className: "bg-amber-100 text-amber-700" };
+  return { label: "Desactualizado", className: "bg-slate-200 text-slate-600" };
+}
+
+export function formatRelativeTime(reportDate: string) {
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - new Date(reportDate).getTime()) / 60000));
+  if (diffMinutes < 1) return "Hace instantes";
+  if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `Hace ${diffHours} h`;
+  return `Hace ${Math.floor(diffHours / 24)} d`;
 }

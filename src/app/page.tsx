@@ -1,15 +1,17 @@
 import { Dashboard } from "@/components/dashboard";
 import { getSupabaseClient } from "@/lib/supabase";
-import type { LatestReport, Station, StationWithLatest } from "@/lib/types";
+import { Report, Station, StationWithLatest } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const supabase = getSupabaseClient();
 
   if (!supabase) {
     return (
-      <main className="mx-auto min-h-screen max-w-6xl px-4 py-10 md:px-6">
-        <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 text-red-700">
-          Faltan variables de entorno de Supabase en build o runtime.
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+          Faltan variables de entorno de Supabase.
         </div>
       </main>
     );
@@ -17,48 +19,32 @@ export default async function HomePage() {
 
   const [{ data: stationsData, error: stationsError }, { data: reportsData, error: reportsError }] =
     await Promise.all([
-      supabase.from("stations").select("*").eq("is_active", true).order("name", { ascending: true }),
+      supabase.from("stations").select("*").eq("is_active", true).order("name"),
       supabase.from("reports").select("*").order("created_at", { ascending: false }),
     ]);
 
   if (stationsError || reportsError) {
     return (
-      <main className="mx-auto min-h-screen max-w-6xl px-4 py-10 md:px-6">
-        <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 text-red-700">
-          Error al leer Supabase:
-          {" "}
-          {stationsError?.message ?? reportsError?.message}
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+          Error al leer Supabase. {stationsError?.message || reportsError?.message}
         </div>
       </main>
     );
   }
 
   const stations = (stationsData ?? []) as Station[];
-  const reports = (reportsData ?? []) as LatestReport[];
+  const reports = (reportsData ?? []) as Report[];
 
-  const latestMap = new Map<number, LatestReport>();
+  const latestByStation = new Map<number, Report>();
   for (const report of reports) {
-    if (!latestMap.has(report.station_id)) {
-      latestMap.set(report.station_id, report);
-    }
+    if (!latestByStation.has(report.station_id)) latestByStation.set(report.station_id, report);
   }
 
   const stationsWithLatest: StationWithLatest[] = stations.map((station) => ({
     ...station,
-    latestReport: latestMap.get(station.id) ?? null,
+    latestReport: latestByStation.get(station.id) ?? null,
   }));
 
-  const zoneOptions = Array.from(
-    new Set(stations.map((station) => station.zone).filter(Boolean) as string[])
-  ).sort((a, b) => a.localeCompare(b));
-
-  return (
-    <main className="mx-auto min-h-screen max-w-7xl px-4 py-8 md:px-6 md:py-10">
-      <Dashboard
-        stations={stationsWithLatest}
-        allStations={stations}
-        zoneOptions={zoneOptions}
-      />
-    </main>
-  );
+  return <Dashboard initialStations={stationsWithLatest} reportCount={reports.length} />;
 }

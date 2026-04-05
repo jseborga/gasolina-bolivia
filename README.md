@@ -1,24 +1,16 @@
-# SurtiMapa V9
+# SurtiMapa V9.1
 
-Versión con:
-- lectura de surtidores y reportes desde Supabase
-- formulario de reporte
+Versión estable para EasyPanel, con:
+- Supabase
 - mapa con Leaflet
-- filtros por combustible, estado y zona
 - geolocalización opcional
-- cálculo de distancia
-- orden por cercanía, recencia, disponibilidad y fila
+- filtros
+- reporte rápido
+- último reporte por surtidor
 
-## Variables
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://TU-PROYECTO.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
-```
-
-## Despliegue
-1. Subir el contenido a GitHub
-2. Verificar variables de entorno en EasyPanel
-3. Redeploy
+## Variables de entorno
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
 ## Nota
-La ubicación del usuario se usa solo en frontend y no se guarda en Supabase.
+Esta versión evita el bloqueo del lockfile usando `npm install` en Docker.

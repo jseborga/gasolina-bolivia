@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SurtiMapa",
-  description: "Estado colaborativo de surtidores y filas en La Paz"
+  description: "Estado colaborativo de surtidores y filas en La Paz",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({

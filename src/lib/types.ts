@@ -1,3 +1,7 @@
+export type FuelType = "especial" | "premium" | "diesel";
+export type AvailabilityStatus = "si_hay" | "no_hay" | "sin_dato";
+export type QueueStatus = "corta" | "media" | "larga" | "sin_dato";
+
 export type Station = {
   id: number;
   name: string;
@@ -8,21 +12,16 @@ export type Station = {
   is_active: boolean;
 };
 
-export type LatestReport = {
+export type Report = {
   id: number;
   station_id: number;
-  fuel_type: "especial" | "premium" | "diesel";
-  availability_status: "si_hay" | "no_hay" | "sin_dato";
-  queue_status: "corta" | "media" | "larga" | "sin_dato";
+  fuel_type: FuelType;
+  availability_status: AvailabilityStatus;
+  queue_status: QueueStatus;
   comment: string | null;
   created_at: string;
 };
 
 export type StationWithLatest = Station & {
-  latestReport: LatestReport | null;
-};
-
-export type UserLocation = {
-  latitude: number;
-  longitude: number;
+  latestReport: Report | null;
 };

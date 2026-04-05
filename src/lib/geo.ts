@@ -1,54 +1,16 @@
-import type { UserLocation } from "@/lib/types";
+export type GeoPoint = { latitude: number; longitude: number };
 
-const EARTH_RADIUS_KM = 6371;
+export function haversineKm(a: GeoPoint, b: GeoPoint) {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
 
-function toRadians(value: number) {
-  return (value * Math.PI) / 180;
-}
-
-export function haversineDistanceKm(
-  startLat: number,
-  startLng: number,
-  endLat: number,
-  endLng: number
-) {
-  const dLat = toRadians(endLat - startLat);
-  const dLng = toRadians(endLng - startLng);
-  const a =
+  const h =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRadians(startLat)) *
-      Math.cos(toRadians(endLat)) *
-      Math.sin(dLng / 2) ** 2;
+    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return EARTH_RADIUS_KM * c;
-}
-
-export function formatDistanceKm(distanceKm?: number | null) {
-  if (distanceKm == null || Number.isNaN(distanceKm)) return null;
-  if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m`;
-  return `${distanceKm.toFixed(1)} km`;
-}
-
-export function distanceFromUser(
-  userLocation: UserLocation | null,
-  latitude?: number | null,
-  longitude?: number | null
-) {
-  if (
-    !userLocation ||
-    latitude == null ||
-    longitude == null ||
-    Number.isNaN(latitude) ||
-    Number.isNaN(longitude)
-  ) {
-    return null;
-  }
-
-  return haversineDistanceKm(
-    userLocation.latitude,
-    userLocation.longitude,
-    latitude,
-    longitude
-  );
+  return 2 * R * Math.asin(Math.sqrt(h));
 }

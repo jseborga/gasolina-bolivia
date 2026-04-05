@@ -1,79 +1,45 @@
-import { StatusBadge } from "@/components/status-badge";
-import { formatDistanceKm } from "@/lib/geo";
-import { formatReportDate, getAvailabilityLabel, getFreshness, getFuelLabel, getQueueLabel } from "@/lib/reporting";
-import type { StationWithLatest } from "@/lib/types";
+import { StationWithLatest } from "@/lib/types";
+import { formatAvailability, formatFuelType, formatQueue, formatRelativeTime, getFreshness } from "@/lib/reporting";
 
-type Props = {
-  station: StationWithLatest;
-  distanceKm?: number | null;
-};
-
-const freshnessStyles: Record<string, string> = {
-  fresh: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  warm: "bg-amber-50 text-amber-700 ring-amber-200",
-  stale: "bg-slate-100 text-slate-600 ring-slate-200",
-  neutral: "bg-slate-100 text-slate-600 ring-slate-200",
-};
-
-export function StationCard({ station, distanceKm }: Props) {
-  const report = station.latestReport;
-  const freshness = getFreshness(report?.created_at);
-  const distanceLabel = formatDistanceKm(distanceKm);
+export function StationCard({ station }: { station: StationWithLatest & { distanceKm?: number | null } }) {
+  const latest = station.latestReport;
+  const freshness = latest ? getFreshness(latest.created_at) : null;
 
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-xl font-bold text-slate-900">{station.name}</h3>
-          <p className="mt-1 text-sm text-slate-500">Zona: {station.zone ?? "Sin zona"}</p>
+          <h3 className="text-lg font-semibold text-slate-900">{station.name}</h3>
+          <p className="text-sm text-slate-600">{station.zone ?? "Sin zona"}</p>
         </div>
-        <StatusBadge availability={report?.availability_status ?? "sin_dato"} />
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${freshnessStyles[freshness.tone]}`}>
-          {freshness.label}
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+          {station.distanceKm != null ? `${station.distanceKm.toFixed(1)} km` : "Sin distancia"}
         </span>
-        {distanceLabel && (
-          <span className="inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
-            {distanceLabel}
-          </span>
-        )}
       </div>
 
-      <div className="space-y-1 text-sm text-slate-600">
-        <p>Dirección: {station.address ?? "Sin dirección"}</p>
-        <p className="text-xs text-slate-400">
-          Lat: {station.latitude ?? "-"} | Lng: {station.longitude ?? "-"}
-        </p>
-      </div>
+      <p className="mt-3 text-sm text-slate-600">{station.address ?? "Sin dirección"}</p>
 
-      <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-        <div className="mb-3 flex flex-wrap gap-2">
-          <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
-            {getFuelLabel(report?.fuel_type)}
-          </span>
-          <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
-            {getQueueLabel(report?.queue_status)}
-          </span>
+      {latest ? (
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Badge>{formatFuelType(latest.fuel_type)}</Badge>
+            <Badge strong={latest.availability_status === "si_hay"} danger={latest.availability_status === "no_hay"}>
+              {formatAvailability(latest.availability_status)}
+            </Badge>
+            <Badge>{formatQueue(latest.queue_status)}</Badge>
+            {freshness ? <span className={`rounded-full px-3 py-1 text-xs font-medium ${freshness.className}`}>{freshness.label}</span> : null}
+          </div>
+          <p className="text-sm text-slate-600">Último reporte: <span className="font-medium text-slate-800">{formatRelativeTime(latest.created_at)}</span></p>
+          {latest.comment ? <p className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-700">{latest.comment}</p> : null}
         </div>
-
-        <div className="space-y-1 text-sm text-slate-700">
-          <p>
-            <span className="font-semibold">Disponibilidad:</span>{" "}
-            {getAvailabilityLabel(report?.availability_status)}
-          </p>
-          <p>
-            <span className="font-semibold">Último reporte:</span>{" "}
-            {formatReportDate(report?.created_at)}
-          </p>
-          {report?.comment && (
-            <p className="rounded-xl bg-white p-3 text-slate-600">
-              {report.comment}
-            </p>
-          )}
-        </div>
-      </div>
+      ) : (
+        <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">Sin reportes aún.</div>
+      )}
     </article>
   );
+}
+
+function Badge({ children, strong = false, danger = false }: { children: React.ReactNode; strong?: boolean; danger?: boolean; }) {
+  const style = danger ? "bg-rose-100 text-rose-700" : strong ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700";
+  return <span className={`rounded-full px-3 py-1 text-xs font-medium ${style}`}>{children}</span>;
 }
