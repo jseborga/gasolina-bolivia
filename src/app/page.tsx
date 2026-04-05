@@ -49,8 +49,12 @@ export default async function HomePage() {
     .eq("is_published", true)
     .order("category")
     .order("name");
-  let servicesData = (initialServicesResult.data ?? []) as SupportService[];
+  let servicesData: SupportService[] = [];
   let servicesError = initialServicesResult.error;
+
+  if (!servicesError && initialServicesResult.data) {
+    servicesData = initialServicesResult.data as unknown as SupportService[];
+  }
 
   if (isMissingColumnError(servicesError, "support_services", SUPPORT_SERVICE_OPTIONAL_COLUMNS)) {
     const legacyResult = await supabase

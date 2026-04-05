@@ -21,8 +21,12 @@ export default async function AdminStationsPage() {
       .from('stations')
       .select(STATION_ADMIN_SELECT)
       .order('name', { ascending: true });
-    let data = (initialResult.data ?? []) as StationAdminRow[];
+    let data: StationAdminRow[] = [];
     let error = initialResult.error;
+
+    if (!error && initialResult.data) {
+      data = initialResult.data as unknown as StationAdminRow[];
+    }
 
     if (isMissingColumnError(error, 'stations', STATION_OPTIONAL_COLUMNS)) {
       const legacyResult = await supabase

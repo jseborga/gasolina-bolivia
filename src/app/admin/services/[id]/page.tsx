@@ -33,8 +33,12 @@ export default async function EditServicePage({ params }: { params: Promise<{ id
       .select(SUPPORT_SERVICE_SELECT)
       .eq('id', serviceId)
       .single();
-    let data = initialResult.data as ServiceAdminRow | null;
+    let data: ServiceAdminRow | null = null;
     let error = initialResult.error;
+
+    if (!error && initialResult.data) {
+      data = initialResult.data as unknown as ServiceAdminRow;
+    }
 
     if (isMissingTableError(error, 'support_services')) {
       return (
