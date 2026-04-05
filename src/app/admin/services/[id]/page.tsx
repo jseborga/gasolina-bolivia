@@ -28,11 +28,13 @@ export default async function EditServicePage({ params }: { params: Promise<{ id
 
   try {
     const supabase = getAdminSupabase();
-    let { data, error } = await supabase
+    const initialResult = await supabase
       .from('support_services')
       .select(SUPPORT_SERVICE_SELECT)
       .eq('id', serviceId)
       .single();
+    let data = initialResult.data as ServiceAdminRow | null;
+    let error = initialResult.error;
 
     if (isMissingTableError(error, 'support_services')) {
       return (

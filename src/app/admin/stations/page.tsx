@@ -17,10 +17,12 @@ export default async function AdminStationsPage() {
 
   try {
     const supabase = getAdminSupabase();
-    let { data, error } = await supabase
+    const initialResult = await supabase
       .from('stations')
       .select(STATION_ADMIN_SELECT)
       .order('name', { ascending: true });
+    let data = (initialResult.data ?? []) as StationAdminRow[];
+    let error = initialResult.error;
 
     if (isMissingColumnError(error, 'stations', STATION_OPTIONAL_COLUMNS)) {
       const legacyResult = await supabase
@@ -42,7 +44,7 @@ export default async function AdminStationsPage() {
       );
     }
 
-    return <StationTable stations={(data ?? []) as StationAdminRow[]} />;
+    return <StationTable stations={data} />;
   } catch (error) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">

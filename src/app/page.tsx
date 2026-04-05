@@ -42,13 +42,15 @@ export default async function HomePage() {
     supabase.from("reports").select("*").order("created_at", { ascending: false }),
   ]);
 
-  let { data: servicesData, error: servicesError } = await supabase
+  const initialServicesResult = await supabase
     .from("support_services")
     .select(SUPPORT_SERVICE_SELECT)
     .eq("is_active", true)
     .eq("is_published", true)
     .order("category")
     .order("name");
+  let servicesData = (initialServicesResult.data ?? []) as SupportService[];
+  let servicesError = initialServicesResult.error;
 
   if (isMissingColumnError(servicesError, "support_services", SUPPORT_SERVICE_OPTIONAL_COLUMNS)) {
     const legacyResult = await supabase

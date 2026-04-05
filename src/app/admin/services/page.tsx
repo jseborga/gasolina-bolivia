@@ -21,10 +21,12 @@ export default async function AdminServicesPage() {
 
   try {
     const supabase = getAdminSupabase();
-    let { data, error } = await supabase
+    const initialResult = await supabase
       .from('support_services')
       .select(SUPPORT_SERVICE_SELECT)
       .order('name', { ascending: true });
+    let data = (initialResult.data ?? []) as ServiceAdminRow[];
+    let error = initialResult.error;
 
     if (isMissingColumnError(error, 'support_services', SUPPORT_SERVICE_OPTIONAL_COLUMNS)) {
       const legacyResult = await supabase
@@ -54,7 +56,7 @@ export default async function AdminServicesPage() {
       );
     }
 
-    return <ServiceTable services={(data ?? []) as ServiceAdminRow[]} />;
+    return <ServiceTable services={data} />;
   } catch (error) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">

@@ -24,11 +24,13 @@ export default async function EditStationPage({ params }: { params: Promise<{ id
 
   try {
     const supabase = getAdminSupabase();
-    let { data, error } = await supabase
+    const initialResult = await supabase
       .from('stations')
       .select(STATION_ADMIN_SELECT)
       .eq('id', stationId)
       .single();
+    let data = initialResult.data as StationAdminRow | null;
+    let error = initialResult.error;
 
     if (isMissingColumnError(error, 'stations', STATION_OPTIONAL_COLUMNS)) {
       const legacyResult = await supabase
