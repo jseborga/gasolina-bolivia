@@ -8,6 +8,7 @@ Versión estable para EasyPanel, con:
 - reporte rápido
 - último reporte por surtidor
 - admin protegido con login
+- importación por lote desde Google Maps con sugerencias de alta/actualización
 
 ## Variables de entorno
 - `NEXT_PUBLIC_SUPABASE_URL`

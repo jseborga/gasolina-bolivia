@@ -121,6 +121,12 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
             >
               Nueva estación
             </Link>
+            <Link
+              href="/admin/stations/import"
+              className="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Importar lote
+            </Link>
           </div>
         </div>
 

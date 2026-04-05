@@ -68,12 +68,20 @@ export default async function AdminHomePage() {
             latitud, longitud, combustibles y notas.
           </p>
           <div className="mt-5">
-            <Link
-              href="/admin/stations"
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Abrir admin de estaciones
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/admin/stations"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Abrir admin de estaciones
+              </Link>
+              <Link
+                href="/admin/stations/import"
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Importar lote
+              </Link>
+            </div>
           </div>
         </section>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { parseMapsInput, type ParsedMapsInput } from "@/lib/google-maps";
 import type { StationAdminInput, StationAdminRow } from "@/lib/admin-types";
 import { StationLocationPicker } from "@/components/admin/station-location-picker";
@@ -9,6 +10,25 @@ type Props = {
   initial?: Partial<StationAdminRow>;
   mode: "create" | "edit";
   stationId?: number;
+};
+
+const CREATE_BASE_STATE = {
+  address: "",
+  city: "La Paz",
+  fuel_diesel: true,
+  fuel_especial: true,
+  fuel_gnv: false,
+  fuel_premium: false,
+  is_active: true,
+  is_verified: false,
+  latitude: "",
+  license_code: "",
+  longitude: "",
+  maps_input: "",
+  name: "",
+  notes: "",
+  source_url: "",
+  zone: "",
 };
 
 function fieldClass() {
@@ -39,6 +59,7 @@ function buildResolveMessage(parsed: ParsedMapsInput) {
 }
 
 export function StationForm({ initial, mode, stationId }: Props) {
+  const router = useRouter();
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     zone: initial?.zone ?? "",
@@ -190,10 +211,16 @@ export function StationForm({ initial, mode, stationId }: Props) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "No se pudo guardar");
 
-      setMessage(mode === "create" ? "Estación creada." : "Estación actualizada.");
       if (mode === "create") {
-        setForm((prev) => ({ ...prev, maps_input: "", notes: "" }));
+        setForm({ ...CREATE_BASE_STATE });
+        router.replace(
+          `/admin/stations/new?created=1&name=${encodeURIComponent(payload.name)}`
+        );
+        router.refresh();
+        return;
       }
+
+      setMessage("Estación actualizada.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {

@@ -36,3 +36,43 @@ export type StationAdminRow = {
   created_at?: string;
   updated_at?: string;
 };
+
+export type StationImportAction = 'create' | 'review' | 'skip' | 'update';
+
+export type StationImportMatch = {
+  id: number;
+  name: string;
+  address: string | null;
+  city: string | null;
+  zone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  source_url: string | null;
+};
+
+export type StationImportPreviewItem = {
+  raw: string;
+  incomingAddress: string;
+  incomingLatitude: number | null;
+  incomingLongitude: number | null;
+  incomingName: string;
+  match: StationImportMatch | null;
+  matchScore: number;
+  nameScore: number;
+  addressScore: number;
+  distanceKm: number | null;
+  reason: string;
+  recommendedAction: StationImportAction;
+  sourceUrl: string;
+};
+
+export type StationImportApplyItem = {
+  raw: string;
+  incomingAddress: string;
+  incomingLatitude: number | null;
+  incomingLongitude: number | null;
+  incomingName: string;
+  matchId: number | null;
+  sourceUrl: string;
+  action: StationImportAction;
+};
