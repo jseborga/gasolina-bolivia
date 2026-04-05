@@ -2,6 +2,11 @@ export type FuelType = "especial" | "premium" | "diesel";
 export type AvailabilityStatus = "si_hay" | "no_hay" | "sin_dato";
 export type QueueStatus = "corta" | "media" | "larga" | "sin_dato";
 
+export type UserLocation = {
+  lat: number;
+  lng: number;
+};
+
 export type Station = {
   id: number;
   name: string;
