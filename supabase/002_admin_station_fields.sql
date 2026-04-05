@@ -1,3 +1,4 @@
+-- deploy:auto
 alter table if exists stations
   add column if not exists city text,
   add column if not exists fuel_especial boolean not null default true,

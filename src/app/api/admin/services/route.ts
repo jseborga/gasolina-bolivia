@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { getOptionalAdminSession } from '@/lib/admin-auth';
 import { normalizeServiceAdminInput } from '@/lib/admin-services';
 import type { ServiceAdminInput } from '@/lib/admin-service-types';
+import {
+  getMissingSupportServicesMessage,
+  isMissingTableError,
+} from '@/lib/supabase-errors';
 import { getAdminSupabase } from '@/lib/supabase-server';
 
 export async function POST(request: Request) {
@@ -18,7 +22,16 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase.from('support_services').insert(payload).select().single();
+    const { data, error } = await supabase
+      .from('support_services')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (isMissingTableError(error, 'support_services')) {
+      return NextResponse.json({ error: getMissingSupportServicesMessage() }, { status: 400 });
+    }
+
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true, service: data });
   } catch (error) {

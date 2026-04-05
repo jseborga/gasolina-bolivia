@@ -1,5 +1,9 @@
 import { Dashboard } from "@/components/dashboard";
 import { getSupabaseClient } from "@/lib/supabase";
+import {
+  getMissingSupportServicesMessage,
+  isMissingTableError,
+} from "@/lib/supabase-errors";
 import { Report, Station, StationWithLatest, SupportService } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +36,9 @@ export default async function HomePage() {
       .order("name"),
   ]);
 
-  if (stationsError || reportsError || servicesError) {
+  const servicesTableMissing = isMissingTableError(servicesError, "support_services");
+
+  if (stationsError || reportsError || (servicesError && !servicesTableMissing)) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
@@ -45,7 +51,7 @@ export default async function HomePage() {
 
   const stations = (stationsData ?? []) as Station[];
   const reports = (reportsData ?? []) as Report[];
-  const services = (servicesData ?? []) as SupportService[];
+  const services = (servicesTableMissing ? [] : servicesData ?? []) as SupportService[];
 
   const latestByStation = new Map<number, Report>();
   for (const report of reports) {
@@ -58,10 +64,18 @@ export default async function HomePage() {
   }));
 
   return (
-    <Dashboard
-      initialStations={stationsWithLatest}
-      initialServices={services}
-      reportCount={reports.length}
-    />
+    <main className="mx-auto max-w-7xl px-6 py-8">
+      {servicesTableMissing ? (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          {getMissingSupportServicesMessage()}
+        </div>
+      ) : null}
+
+      <Dashboard
+        initialStations={stationsWithLatest}
+        initialServices={services}
+        reportCount={reports.length}
+      />
+    </main>
   );
 }

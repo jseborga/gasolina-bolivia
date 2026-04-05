@@ -1,5 +1,9 @@
 import { requireAdminSession } from '@/lib/admin-auth';
 import type { ServiceAdminRow } from '@/lib/admin-service-types';
+import {
+  getMissingSupportServicesMessage,
+  isMissingTableError,
+} from '@/lib/supabase-errors';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { ServiceTable } from '@/components/admin/service-table';
 
@@ -16,6 +20,14 @@ export default async function AdminServicesPage() {
       .order('name', { ascending: true });
 
     if (error) {
+      if (isMissingTableError(error, 'support_services')) {
+        return (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+            {getMissingSupportServicesMessage()}
+          </div>
+        );
+      }
+
       return (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
           Error al cargar servicios: {error.message}

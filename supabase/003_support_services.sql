@@ -1,3 +1,4 @@
+-- deploy:auto
 create table if not exists support_services (
   id bigint generated always as identity primary key,
   name text not null,

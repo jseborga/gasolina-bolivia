@@ -1,3 +1,4 @@
+-- deploy:bootstrap
 drop table if exists reports cascade;
 drop table if exists stations cascade;
 
