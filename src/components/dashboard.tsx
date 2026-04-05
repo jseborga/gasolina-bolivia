@@ -18,7 +18,6 @@ import type {
   ReportInput,
   StationWithLatest,
   SupportService,
-  SupportServiceCategory,
   SupportServiceWithDistance,
 } from "@/lib/types";
 import { haversineKm } from "@/lib/utils";
@@ -32,8 +31,6 @@ type DashboardProps = {
   initialServices: SupportService[];
   reportCount?: number;
 };
-
-type CategoryFilter = "all" | "stations" | SupportServiceCategory;
 
 type SearchResult =
   | {
@@ -99,7 +96,6 @@ export function Dashboard({
   initialServices,
   reportCount = 0,
 }: DashboardProps) {
-  const categoryFilter: CategoryFilter = "all";
   const [stations, setStations] = useState<StationWithLatest[]>(initialStations);
   const [services, setServices] = useState<SupportService[]>(initialServices);
   const [search, setSearch] = useState("");
@@ -182,69 +178,60 @@ export function Dashboard({
   const normalizedQuery = normalizeSearchValue(search);
 
   const results = useMemo<SearchResult[]>(() => {
-    const stationResults: SearchResult[] =
-      categoryFilter === "all" || categoryFilter === "stations"
-        ? stationsWithDistance
-            .map((station) => {
-              const searchText = normalizeSearchValue(
-                [
-                  station.name,
-                  station.zone,
-                  station.city,
-                  station.address,
-                  station.latestReport?.comment,
-                  station.latestReport?.fuel_type,
-                  station.latestReport?.availability_status,
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-              );
+    const stationResults: SearchResult[] = stationsWithDistance
+      .map((station) => {
+        const searchText = normalizeSearchValue(
+          [
+            station.name,
+            station.zone,
+            station.city,
+            station.address,
+            station.latestReport?.comment,
+            station.latestReport?.fuel_type,
+            station.latestReport?.availability_status,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        );
 
-              const searchRank = getMatchRank(searchText, normalizedQuery, station.name);
-              return {
-                key: `station-${station.id}`,
-                kind: "station" as const,
-                distanceKm: station.distanceKm ?? null,
-                searchRank,
-                station,
-              };
-            })
-            .filter((item) => !normalizedQuery || item.searchRank >= 0)
-        : [];
+        const searchRank = getMatchRank(searchText, normalizedQuery, station.name);
+        return {
+          key: `station-${station.id}`,
+          kind: "station" as const,
+          distanceKm: station.distanceKm ?? null,
+          searchRank,
+          station,
+        };
+      })
+      .filter((item) => !normalizedQuery || item.searchRank >= 0);
 
-    const serviceResults: SearchResult[] =
-      categoryFilter !== "stations"
-        ? servicesWithDistance
-            .filter((service) =>
-              categoryFilter === "all" ? true : service.category === categoryFilter
-            )
-            .map((service) => {
-              const searchText = normalizeSearchValue(
-                [
-                  service.name,
-                  service.zone,
-                  service.city,
-                  service.address,
-                  service.description,
-                  service.price_text,
-                  service.meeting_point,
-                  getSupportServiceLabel(service.category),
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-              );
+    const serviceResults: SearchResult[] = servicesWithDistance
+      .map((service) => {
+        const searchText = normalizeSearchValue(
+          [
+            service.name,
+            service.zone,
+            service.city,
+            service.address,
+            service.description,
+            service.price_text,
+            service.meeting_point,
+            getSupportServiceLabel(service.category),
+          ]
+            .filter(Boolean)
+            .join(" ")
+        );
 
-              const searchRank = getMatchRank(searchText, normalizedQuery, service.name);
-              return {
-                key: `service-${service.id}`,
-                kind: "service" as const,
-                distanceKm: service.distanceKm ?? null,
-                searchRank,
-                service,
-              };
-            })
-            .filter((item) => !normalizedQuery || item.searchRank >= 0)
-        : [];
+        const searchRank = getMatchRank(searchText, normalizedQuery, service.name);
+        return {
+          key: `service-${service.id}`,
+          kind: "service" as const,
+          distanceKm: service.distanceKm ?? null,
+          searchRank,
+          service,
+        };
+      })
+      .filter((item) => !normalizedQuery || item.searchRank >= 0);
 
     return [...stationResults, ...serviceResults].sort((a, b) => {
       if (normalizedQuery) {
@@ -259,7 +246,7 @@ export function Dashboard({
       const bName = b.kind === "station" ? b.station.name : b.service.name;
       return aName.localeCompare(bName, "es");
     });
-  }, [categoryFilter, normalizedQuery, servicesWithDistance, stationsWithDistance]);
+  }, [normalizedQuery, servicesWithDistance, stationsWithDistance]);
 
   useEffect(() => {
     if (!selectedKey || !results.some((item) => item.key === selectedKey)) {
