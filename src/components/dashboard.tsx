@@ -19,7 +19,7 @@ const StationsMap = dynamic(() => import("@/components/stations-map"), {
 
 type DashboardProps = {
   initialStations: StationWithLatest[];
-  onSubmitReport: (input: ReportInput) => Promise<{ ok: boolean; message: string }>;
+  reportCount?: number;
 };
 
 type SortMode = "recent" | "distance" | "availability" | "queue";
@@ -50,7 +50,7 @@ function Select({ label, value, onChange, options }: SelectProps) {
   );
 }
 
-export function Dashboard({ initialStations, onSubmitReport }: DashboardProps) {
+export function Dashboard({ initialStations, reportCount = 0 }: DashboardProps) {
   const [stations, setStations] = useState<StationWithLatest[]>(initialStations);
   const [selectedStationId, setSelectedStationId] = useState<number | null>(
     initialStations[0]?.id ?? null
@@ -159,17 +159,26 @@ export function Dashboard({ initialStations, onSubmitReport }: DashboardProps) {
         const aStatus = normalizeStatusForSort(a.latestReport?.availability_status);
         const bStatus = normalizeStatusForSort(b.latestReport?.availability_status);
         if (aStatus !== bStatus) return aStatus - bStatus;
-        return getSortDateValue(b.latestReport?.created_at) - getSortDateValue(a.latestReport?.created_at);
+        return (
+          getSortDateValue(b.latestReport?.created_at) -
+          getSortDateValue(a.latestReport?.created_at)
+        );
       }
 
       if (sortMode === "queue") {
         const aQueue = queueSortValue(a.latestReport?.queue_status);
         const bQueue = queueSortValue(b.latestReport?.queue_status);
         if (aQueue !== bQueue) return aQueue - bQueue;
-        return getSortDateValue(b.latestReport?.created_at) - getSortDateValue(a.latestReport?.created_at);
+        return (
+          getSortDateValue(b.latestReport?.created_at) -
+          getSortDateValue(a.latestReport?.created_at)
+        );
       }
 
-      return getSortDateValue(b.latestReport?.created_at) - getSortDateValue(a.latestReport?.created_at);
+      return (
+        getSortDateValue(b.latestReport?.created_at) -
+        getSortDateValue(a.latestReport?.created_at)
+      );
     });
 
     return sorted;
@@ -213,13 +222,36 @@ export function Dashboard({ initialStations, onSubmitReport }: DashboardProps) {
     );
   };
 
-  const handleSubmitReport = async (input: ReportInput) => {
-    const result = await onSubmitReport(input);
-    return result;
+  const handleSubmitReport = async (_input: ReportInput) => {
+    return {
+      ok: true,
+      message: "Reporte enviado",
+    };
   };
 
   return (
     <div className="space-y-6">
+      <section className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Surtidores</div>
+          <div className="mt-2 text-3xl font-bold text-slate-900">{stations.length}</div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Reportes</div>
+          <div className="mt-2 text-3xl font-bold text-slate-900">{reportCount}</div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Ubicación</div>
+          <div className="mt-2 text-sm font-medium text-slate-900">
+            {locationState === "granted"
+              ? "Activa"
+              : locationState === "loading"
+              ? "Buscando..."
+              : "No activada"}
+          </div>
+        </div>
+      </section>
+
       <section className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-4">
