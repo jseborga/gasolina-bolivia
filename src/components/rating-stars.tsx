@@ -11,13 +11,11 @@ const iconClass = {
   md: "h-5 w-5",
 } as const;
 
-function StarIcon({ filled, size }: { filled: boolean; size: "sm" | "md" }) {
+function StarIcon({ size }: { size: "sm" | "md" }) {
   return (
     <svg
       viewBox="0 0 20 20"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth="1.5"
+      fill="currentColor"
       className={iconClass[size]}
       aria-hidden="true"
     >
@@ -32,17 +30,38 @@ export function RatingStars({
   size = "sm",
 }: RatingStarsProps) {
   const normalized = Math.max(0, Math.min(5, Number(score) || 0));
-  const filledStars = Math.round(normalized);
+  const percentage = `${(normalized / 5) * 100}%`;
+  const hasVotes = Number(count) > 0;
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-0.5 text-amber-500">
-        {Array.from({ length: 5 }, (_, index) => (
-          <StarIcon key={index} filled={index < filledStars} size={size} />
-        ))}
+    <div
+      className="flex items-center gap-2"
+      aria-label={
+        hasVotes
+          ? `${normalized.toFixed(1)} de 5 estrellas con ${count} calificaciones`
+          : `${normalized.toFixed(1)} de 5 estrellas`
+      }
+    >
+      <div className="relative">
+        <div className="flex items-center gap-0.5 text-slate-200">
+          {Array.from({ length: 5 }, (_, index) => (
+            <StarIcon key={`empty-${index}`} size={size} />
+          ))}
+        </div>
+        <div
+          className="absolute inset-y-0 left-0 overflow-hidden"
+          style={{ width: percentage }}
+        >
+          <div className="flex items-center gap-0.5 text-amber-500">
+            {Array.from({ length: 5 }, (_, index) => (
+              <StarIcon key={`filled-${index}`} size={size} />
+            ))}
+          </div>
+        </div>
       </div>
+
       <span className="text-xs text-slate-500">
-        {normalized.toFixed(1)} {count ? `(${count})` : ""}
+        {normalized.toFixed(1)} {hasVotes ? `(${count})` : "(sin votos)"}
       </span>
     </div>
   );

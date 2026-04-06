@@ -8,6 +8,15 @@ import type {
   StationOffsetSuggestion,
 } from '@/lib/admin-types';
 
+const NOMINATIM_MIN_INTERVAL_MS = 1200;
+
+let nominatimQueue: Promise<void> = Promise.resolve();
+let lastNominatimRequestAt = 0;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function toNumber(value?: string | number | null) {
   if (value == null) return null;
   const parsed = Number(value);
@@ -59,19 +68,39 @@ function normalizeCandidate(source: any): StationAddressCandidate | null {
 }
 
 async function fetchJson(url: string) {
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      'accept-language': 'es',
-      'user-agent': 'SurtiMapaAdmin/1.0',
-    },
-  });
+  const runRequest = async () => {
+    const waitMs = Math.max(
+      0,
+      lastNominatimRequestAt + NOMINATIM_MIN_INTERVAL_MS - Date.now()
+    );
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
 
-  if (!response.ok) {
-    throw new Error(`Error de geocodificacion: ${response.status}`);
-  }
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'accept-language': 'es',
+        'user-agent': 'SurtiMapaAdmin/1.0',
+      },
+    });
 
-  return response.json();
+    lastNominatimRequestAt = Date.now();
+
+    if (!response.ok) {
+      throw new Error(`Error de geocodificacion: ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  const task = nominatimQueue.then(runRequest, runRequest);
+  nominatimQueue = task.then(
+    () => undefined,
+    () => undefined
+  );
+
+  return task;
 }
 
 async function geocodeAddress(address: string) {
@@ -137,12 +166,41 @@ export async function verifyStationLocation(params: {
   const inputLongitude = params.longitude ?? null;
   const issues: string[] = [];
 
-  const [addressCandidate, reverseCandidate] = await Promise.all([
-    inputAddress ? geocodeAddress(inputAddress) : Promise.resolve(null),
-    inputLatitude != null && inputLongitude != null
-      ? reverseGeocode(inputLatitude, inputLongitude)
-      : Promise.resolve(null),
-  ]);
+  let addressCandidate: StationAddressCandidate | null = null;
+  let reverseCandidate: StationAddressCandidate | null = null;
+
+  try {
+    addressCandidate = inputAddress ? await geocodeAddress(inputAddress) : null;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes('Error de geocodificacion: 429')
+    ) {
+      issues.push(
+        'Geocodificador temporalmente limitado (429). Espera un momento y vuelve a auditar.'
+      );
+    } else {
+      throw error;
+    }
+  }
+
+  try {
+    reverseCandidate =
+      inputLatitude != null && inputLongitude != null
+        ? await reverseGeocode(inputLatitude, inputLongitude)
+        : null;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes('Error de geocodificacion: 429')
+    ) {
+      issues.push(
+        'Reverse geocoding temporalmente limitado (429). Espera un momento y vuelve a auditar.'
+      );
+    } else {
+      throw error;
+    }
+  }
 
   let distanceKm: number | null = null;
   if (
@@ -200,8 +258,10 @@ function isImportedStation(station: StationAdminRow) {
 
   return (
     note.includes('importada desde lote de google maps') ||
+    note.includes('importada desde openstreetmap') ||
     sourceUrl.includes('google.') ||
-    sourceUrl.includes('maps.app.goo.gl')
+    sourceUrl.includes('maps.app.goo.gl') ||
+    sourceUrl.includes('openstreetmap.org')
   );
 }
 

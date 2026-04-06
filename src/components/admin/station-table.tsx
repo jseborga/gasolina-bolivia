@@ -1,36 +1,55 @@
 "use client";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useDeferredValue, useState } from 'react';
-import type { StationAdminRow } from '@/lib/admin-types';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useDeferredValue, useMemo, useState } from "react";
+import { RatingStars } from "@/components/rating-stars";
+import type { StationAdminRow } from "@/lib/admin-types";
+
+type StationBatchAction = "delete" | "verify" | "unverify";
+
+const collator = new Intl.Collator("es", { sensitivity: "base" });
 
 function hasCoordinates(station: StationAdminRow) {
   return station.latitude != null && station.longitude != null;
 }
 
 function formatCoordinates(station: StationAdminRow) {
-  if (!hasCoordinates(station)) return 'Sin punto fijo';
+  if (!hasCoordinates(station)) return "Sin punto fijo";
   return `${station.latitude?.toFixed(6)}, ${station.longitude?.toFixed(6)}`;
 }
 
 function formatUpdatedAt(value?: string) {
-  if (!value) return 'Sin fecha';
+  if (!value) return "Sin fecha";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Fecha inválida';
+  if (Number.isNaN(date.getTime())) return "Fecha invalida";
 
-  return new Intl.DateTimeFormat('es-BO', {
-    dateStyle: 'short',
-    timeStyle: 'short',
+  return new Intl.DateTimeFormat("es-BO", {
+    dateStyle: "short",
+    timeStyle: "short",
   }).format(date);
+}
+
+function getZoneValue(station: StationAdminRow) {
+  const value = station.zone?.trim() || station.city?.trim();
+  return value && value.length > 0 ? value : "__sin_zona__";
+}
+
+function getZoneLabel(value: string) {
+  return value === "__sin_zona__" ? "Sin zona" : value;
 }
 
 export function StationTable({ stations }: { stations: StationAdminRow[] }) {
   const router = useRouter();
-  const [query, setQuery] = useState('');
-  const [pointFilter, setPointFilter] = useState<'all' | 'missing' | 'with'>('all');
-  const [verificationFilter, setVerificationFilter] = useState<'all' | 'pending' | 'verified'>('all');
+  const [query, setQuery] = useState("");
+  const [pointFilter, setPointFilter] = useState<"all" | "missing" | "with">("all");
+  const [verificationFilter, setVerificationFilter] = useState<
+    "all" | "pending" | "verified"
+  >("all");
+  const [zoneFilter, setZoneFilter] = useState("all");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [bulkAction, setBulkAction] = useState<StationBatchAction | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
@@ -40,34 +59,108 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
     unverified: stations.filter((station) => !station.is_verified).length,
   };
 
-  const filteredStations = stations.filter((station) => {
-    const matchesQuery =
-      deferredQuery.length === 0 ||
-      [
-        station.name,
-        station.zone,
-        station.city,
-        station.address,
-        station.license_code,
-        station.notes,
-      ]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(deferredQuery));
+  const zoneOptions = useMemo(
+    () =>
+      Array.from(new Set(stations.map((station) => getZoneValue(station)))).sort((a, b) =>
+        collator.compare(getZoneLabel(a), getZoneLabel(b))
+      ),
+    [stations]
+  );
 
-    const matchesPointFilter =
-      pointFilter === 'all' ||
-      (pointFilter === 'missing' ? !hasCoordinates(station) : hasCoordinates(station));
+  const filteredStations = useMemo(
+    () =>
+      stations.filter((station) => {
+        const matchesQuery =
+          deferredQuery.length === 0 ||
+          [
+            station.name,
+            station.zone,
+            station.city,
+            station.address,
+            station.license_code,
+            station.notes,
+          ]
+            .filter(Boolean)
+            .some((value) => value!.toLowerCase().includes(deferredQuery));
 
-    const matchesVerification =
-      verificationFilter === 'all' ||
-      (verificationFilter === 'verified' ? station.is_verified : !station.is_verified);
+        const matchesPointFilter =
+          pointFilter === "all" ||
+          (pointFilter === "missing" ? !hasCoordinates(station) : hasCoordinates(station));
 
-    return matchesQuery && matchesPointFilter && matchesVerification;
-  });
+        const matchesVerification =
+          verificationFilter === "all" ||
+          (verificationFilter === "verified" ? station.is_verified : !station.is_verified);
+
+        const matchesZone = zoneFilter === "all" || getZoneValue(station) === zoneFilter;
+
+        return matchesQuery && matchesPointFilter && matchesVerification && matchesZone;
+      }),
+    [deferredQuery, pointFilter, stations, verificationFilter, zoneFilter]
+  );
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const filteredIds = filteredStations.map((station) => station.id);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedSet.has(id));
+
+  const toggleSelectedId = (id: number) => {
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  };
+
+  const toggleFilteredSelection = () => {
+    setSelectedIds((current) => {
+      if (allFilteredSelected) {
+        return current.filter((id) => !filteredIds.includes(id));
+      }
+
+      return Array.from(new Set([...current, ...filteredIds]));
+    });
+  };
+
+  const runBulkAction = async (action: StationBatchAction) => {
+    if (selectedIds.length === 0) {
+      setError("Debes seleccionar al menos una estacion.");
+      return;
+    }
+
+    if (
+      action === "delete" &&
+      !window.confirm(
+        `Eliminar ${selectedIds.length} estaciones seleccionadas?\n\nEsto tambien eliminara sus reportes asociados.`
+      )
+    ) {
+      return;
+    }
+
+    setBulkAction(action);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/admin/stations/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ids: selectedIds }),
+      });
+
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "No se pudo ejecutar la accion masiva.");
+      }
+
+      setSelectedIds([]);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo ejecutar la accion masiva.");
+    } finally {
+      setBulkAction(null);
+    }
+  };
 
   const handleDelete = async (station: StationAdminRow) => {
     const confirmed = window.confirm(
-      `¿Eliminar la estación "${station.name}"?\n\nEsto también eliminará sus reportes asociados.`
+      `Eliminar la estacion "${station.name}"?\n\nEsto tambien eliminara sus reportes asociados.`
     );
 
     if (!confirmed) return;
@@ -77,17 +170,18 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
 
     try {
       const res = await fetch(`/api/admin/stations/${station.id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       const json = (await res.json()) as { error?: string };
       if (!res.ok) {
-        throw new Error(json.error || 'No se pudo eliminar la estación.');
+        throw new Error(json.error || "No se pudo eliminar la estacion.");
       }
 
+      setSelectedIds((current) => current.filter((id) => id !== station.id));
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo eliminar la estación.');
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la estacion.");
     } finally {
       setDeletingId(null);
     }
@@ -111,19 +205,57 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
       </section>
 
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Estaciones</h2>
-            <p className="text-sm text-slate-500">Administra catálogo, coordenadas y combustibles.</p>
+        <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Estaciones</h2>
+              <p className="text-sm text-slate-500">
+                Administra catalogo, coordenadas, validacion y limpieza masiva.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/admin/stations/new"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Nueva estacion
+              </Link>
+              <Link
+                href="/admin/stations/import"
+                className="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Importar lote
+              </Link>
+              <Link
+                href="/admin/stations/import/review"
+                className="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Auditar importadas
+              </Link>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3 lg:min-w-[620px] lg:flex-row">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(180px,1fr))]">
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar por nombre, zona, ciudad o dirección"
-              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500 lg:flex-1"
+              placeholder="Buscar por nombre, zona, ciudad o direccion"
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
             />
+
+            <select
+              value={zoneFilter}
+              onChange={(event) => setZoneFilter(event.target.value)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
+            >
+              <option value="all">Todas las zonas</option>
+              {zoneOptions.map((option) => (
+                <option key={option} value={option}>
+                  {getZoneLabel(option)}
+                </option>
+              ))}
+            </select>
 
             <select
               value={pointFilter}
@@ -142,29 +274,64 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
               }
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
             >
-              <option value="all">Todas las verificaciones</option>
+              <option value="all">Todas las validaciones</option>
               <option value="pending">Pendientes</option>
-              <option value="verified">Verificadas</option>
+              <option value="verified">Validadas</option>
             </select>
+          </div>
 
-            <Link
-              href="/admin/stations/new"
-              className="rounded-xl bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Nueva estación
-            </Link>
-            <Link
-              href="/admin/stations/import"
-              className="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Importar lote
-            </Link>
-            <Link
-              href="/admin/stations/import/review"
-              className="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Auditar importadas
-            </Link>
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+              <span>
+                Filtradas: <strong className="text-slate-900">{filteredStations.length}</strong>
+              </span>
+              <span>
+                Seleccionadas: <strong className="text-slate-900">{selectedIds.length}</strong>
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={toggleFilteredSelection}
+                disabled={filteredIds.length === 0}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {allFilteredSelected ? "Quitar visibles" : "Seleccionar visibles"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                disabled={selectedIds.length === 0}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Limpiar seleccion
+              </button>
+              <button
+                type="button"
+                onClick={() => runBulkAction("verify")}
+                disabled={selectedIds.length === 0 || bulkAction !== null}
+                className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkAction === "verify" ? "Validando..." : "Validar seleccionadas"}
+              </button>
+              <button
+                type="button"
+                onClick={() => runBulkAction("unverify")}
+                disabled={selectedIds.length === 0 || bulkAction !== null}
+                className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkAction === "unverify" ? "Actualizando..." : "Quitar validacion"}
+              </button>
+              <button
+                type="button"
+                onClick={() => runBulkAction("delete")}
+                disabled={selectedIds.length === 0 || bulkAction !== null}
+                className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkAction === "delete" ? "Eliminando..." : "Eliminar seleccionadas"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -178,8 +345,16 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-slate-600">
               <tr>
-                <th className="px-4 py-3">Estación</th>
-                <th className="px-4 py-3">Ubicación</th>
+                <th className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleFilteredSelection}
+                    aria-label={allFilteredSelected ? "Quitar visibles" : "Seleccionar visibles"}
+                  />
+                </th>
+                <th className="px-4 py-3">Estacion</th>
+                <th className="px-4 py-3">Ubicacion</th>
                 <th className="px-4 py-3">Punto</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3">Actualizada</th>
@@ -189,46 +364,61 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
             <tbody>
               {filteredStations.map((station) => {
                 const fuels = [
-                  station.fuel_especial ? 'Especial' : null,
-                  station.fuel_premium ? 'Premium' : null,
-                  station.fuel_diesel ? 'Diésel' : null,
-                  station.fuel_gnv ? 'GNV' : null,
+                  station.fuel_especial ? "Especial" : null,
+                  station.fuel_premium ? "Premium" : null,
+                  station.fuel_diesel ? "Diesel" : null,
+                  station.fuel_gnv ? "GNV" : null,
                 ]
                   .filter(Boolean)
-                  .join(', ');
+                  .join(", ");
 
                 const googleMapsUrl = hasCoordinates(station)
                   ? `https://www.google.com/maps?q=${station.latitude},${station.longitude}`
-                  : station.source_url || '';
+                  : station.source_url || "";
 
                 return (
                   <tr
                     key={station.id}
                     className={`border-t border-slate-100 ${
-                      hasCoordinates(station) ? 'bg-white' : 'bg-amber-50/40'
+                      hasCoordinates(station) ? "bg-white" : "bg-amber-50/40"
                     }`}
                   >
+                    <td className="px-4 py-4 align-top">
+                      <input
+                        type="checkbox"
+                        checked={selectedSet.has(station.id)}
+                        onChange={() => toggleSelectedId(station.id)}
+                        aria-label={`Seleccionar ${station.name}`}
+                      />
+                    </td>
                     <td className="px-4 py-4">
                       <div className="font-medium text-slate-900">{station.name}</div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {fuels || 'Sin combustibles marcados'}
+                      <div className="mt-2">
+                        <RatingStars
+                          count={station.reputation_votes}
+                          score={station.reputation_score}
+                        />
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        {fuels || "Sin combustibles marcados"}
                       </div>
                       {station.license_code ? (
                         <div className="mt-1 text-xs text-slate-500">
-                          Código: {station.license_code}
+                          Codigo: {station.license_code}
                         </div>
                       ) : null}
                     </td>
                     <td className="px-4 py-4 text-slate-600">
-                      <div>{station.city || '-'}</div>
+                      <div>{station.city || "-"}</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        {[station.zone, station.address].filter(Boolean).join(' | ') || 'Sin dirección'}
+                        {[station.zone, station.address].filter(Boolean).join(" | ") ||
+                          "Sin direccion"}
                       </div>
                     </td>
                     <td className="px-4 py-4 text-slate-600">
                       <div>{formatCoordinates(station)}</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        {station.source_url ? 'Con URL de origen' : 'Sin URL de origen'}
+                        {station.source_url ? "Con URL de origen" : "Sin URL de origen"}
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -236,24 +426,26 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                             station.is_verified
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-amber-100 text-amber-700'
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700"
                           }`}
                         >
-                          {station.is_verified ? 'Verificada' : 'Pendiente'}
+                          {station.is_verified ? "Validada" : "Pendiente"}
                         </span>
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                             station.is_active
-                              ? 'bg-slate-100 text-slate-700'
-                              : 'bg-rose-100 text-rose-700'
+                              ? "bg-slate-100 text-slate-700"
+                              : "bg-rose-100 text-rose-700"
                           }`}
                         >
-                          {station.is_active ? 'Activa' : 'Inactiva'}
+                          {station.is_active ? "Activa" : "Inactiva"}
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-slate-600">{formatUpdatedAt(station.updated_at || station.created_at)}</td>
+                    <td className="px-4 py-4 text-slate-600">
+                      {formatUpdatedAt(station.updated_at || station.created_at)}
+                    </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
                         <Link
@@ -277,10 +469,10 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
                         <button
                           type="button"
                           onClick={() => handleDelete(station)}
-                          disabled={deletingId === station.id}
+                          disabled={deletingId === station.id || bulkAction !== null}
                           className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {deletingId === station.id ? 'Eliminando...' : 'Eliminar'}
+                          {deletingId === station.id ? "Eliminando..." : "Eliminar"}
                         </button>
                       </div>
                     </td>
@@ -290,7 +482,7 @@ export function StationTable({ stations }: { stations: StationAdminRow[] }) {
 
               {filteredStations.length === 0 ? (
                 <tr className="border-t border-slate-100">
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
                     No hay estaciones que coincidan con los filtros actuales.
                   </td>
                 </tr>
