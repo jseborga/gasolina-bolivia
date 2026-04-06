@@ -86,6 +86,7 @@ type StationsMapProps = {
   selectedKey: string | null;
   onSelectKey: (key: string) => void;
   onRequestReportStation: (stationId: number, source: "detail" | "popup") => void;
+  userLocationFocusKey?: number;
   userLocation: { lat: number; lng: number } | null;
 };
 
@@ -1376,6 +1377,29 @@ function IncidentDraftController({
   return null;
 }
 
+function UserLocationController({
+  focusKey,
+  userLocation,
+}: {
+  focusKey: number;
+  userLocation: { lat: number; lng: number } | null;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!userLocation || focusKey === 0) {
+      return;
+    }
+
+    map.flyTo([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 15), {
+      animate: true,
+      duration: 0.45,
+    });
+  }, [focusKey, map, userLocation]);
+
+  return null;
+}
+
 export default function StationsMap({
   adminActionKey = null,
   incidentReportMode = false,
@@ -1401,6 +1425,7 @@ export default function StationsMap({
   selectedKey,
   onSelectKey,
   onRequestReportStation,
+  userLocationFocusKey = 0,
   userLocation,
 }: StationsMapProps) {
   const [draftIncidentPoint, setDraftIncidentPoint] = useState<{
@@ -1414,14 +1439,13 @@ export default function StationsMap({
     }
   }, [incidentReportMode]);
 
-  const defaultCenter: [number, number] = userLocation
-    ? [userLocation.lat, userLocation.lng]
-    : [-16.5, -68.15];
+  const defaultCenter: [number, number] = [-16.5, -68.15];
 
   return (
     <MapContainer
       center={defaultCenter}
       zoom={12}
+      zoomControl={false}
       scrollWheelZoom
       style={{ height: "100%", width: "100%" }}
     >
@@ -1431,6 +1455,7 @@ export default function StationsMap({
       />
 
       <MapFocusController selectedKey={selectedKey} stations={stations} services={services} />
+      <UserLocationController focusKey={userLocationFocusKey} userLocation={userLocation} />
       <IncidentDraftController
         enabled={incidentReportMode}
         onPickPoint={(point) => {

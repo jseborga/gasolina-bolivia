@@ -292,12 +292,11 @@ export function Dashboard({
   const [locationState, setLocationState] = useState<
     "idle" | "loading" | "granted" | "denied" | "error"
   >("idle");
+  const [locationFocusKey, setLocationFocusKey] = useState(0);
   const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
   const [incidentMapFilter, setIncidentMapFilter] = useState<IncidentMapFilter>("all");
   const [showIncidentFilters, setShowIncidentFilters] = useState(false);
   const [incidentReportMode, setIncidentReportMode] = useState(false);
-  const [didAutoPickNearest, setDidAutoPickNearest] = useState(false);
-  const [requestedInitialLocation, setRequestedInitialLocation] = useState(false);
   const [stationAdminDraft, setStationAdminDraft] = useState<StationMapAdminDraft | null>(null);
   const [serviceAdminDraft, setServiceAdminDraft] = useState<ServiceMapAdminDraft | null>(null);
   const [adminActionKey, setAdminActionKey] = useState<string | null>(null);
@@ -485,16 +484,10 @@ export function Dashboard({
       return;
     }
 
-    setSelectedKey(results[0]?.key ?? null);
+    if (selectedKey !== null) {
+      setSelectedKey(null);
+    }
   }, [isAdminMode, results, selectedKey]);
-
-  useEffect(() => {
-    if (isAdminMode || !userLocation || locationState !== "granted" || didAutoPickNearest) return;
-    if (!results[0]) return;
-
-    setSelectedKey(results[0].key);
-    setDidAutoPickNearest(true);
-  }, [didAutoPickNearest, isAdminMode, locationState, results, userLocation]);
 
   useEffect(() => {
     setShowReportForm(false);
@@ -585,7 +578,6 @@ export function Dashboard({
     }
 
     setLocationState("loading");
-    setDidAutoPickNearest(false);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -594,6 +586,7 @@ export function Dashboard({
           lng: position.coords.longitude,
         });
         setLocationState("granted");
+        setLocationFocusKey((current) => current + 1);
       },
       () => {
         setLocationState(options?.silent ? "idle" : "denied");
@@ -605,12 +598,6 @@ export function Dashboard({
       }
     );
   };
-
-  useEffect(() => {
-    if (isAdminMode || requestedInitialLocation || typeof navigator === "undefined") return;
-    setRequestedInitialLocation(true);
-    handleUseMyLocation({ silent: true });
-  }, [isAdminMode, requestedInitialLocation]);
 
   const handleSelectResult = (
     key: string,
@@ -1595,13 +1582,40 @@ export function Dashboard({
             <button
               type="button"
               onClick={() => handleUseMyLocation()}
-              className="pointer-events-auto rounded-xl bg-white/95 px-3 py-2 text-xs font-medium text-slate-800 shadow-sm ring-1 ring-slate-200 backdrop-blur hover:bg-white"
+              aria-label={
+                locationState === "granted" ? "Ir a mi ubicacion" : "Activar ubicacion"
+              }
+              title={locationState === "granted" ? "Ir a mi ubicacion" : "Activar ubicacion"}
+              className={`pointer-events-auto relative flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm ring-1 backdrop-blur transition ${
+                locationState === "granted"
+                  ? "bg-white/96 ring-sky-200 hover:bg-white"
+                  : locationState === "loading"
+                    ? "bg-white/96 ring-amber-200 hover:bg-white"
+                    : "bg-white/92 ring-slate-200 hover:bg-white"
+              }`}
             >
-              {locationState === "loading"
-                ? "Activando GPS..."
-                : locationState === "granted"
-                  ? "Ir a mi ubicacion"
-                  : "Activar GPS"}
+              <span
+                className={`relative block h-5 w-5 rounded-full border-2 ${
+                  locationState === "granted"
+                    ? "border-sky-600"
+                    : locationState === "loading"
+                      ? "border-amber-500 animate-pulse"
+                      : "border-slate-400"
+                }`}
+              >
+                <span
+                  className={`absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full ${
+                    locationState === "granted"
+                      ? "bg-sky-600"
+                      : locationState === "loading"
+                        ? "bg-amber-500"
+                        : "bg-slate-400"
+                  }`}
+                />
+                {locationState !== "granted" ? (
+                  <span className="absolute left-1/2 top-1/2 h-0.5 w-6 -translate-x-1/2 -translate-y-1/2 -rotate-45 rounded-full bg-slate-400/90" />
+                ) : null}
+              </span>
             </button>
           </div>
         ) : null}
@@ -1646,6 +1660,7 @@ export function Dashboard({
             selectedKey={selectedKey}
             onRequestReportStation={handleRequestReportStation}
             onSelectKey={(key) => handleSelectResult(key, "map")}
+            userLocationFocusKey={locationFocusKey}
             userLocation={isAdminMode ? null : userLocation}
           />
         </div>
