@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { trackAppEvent } from "@/lib/analytics";
 import type { VendorRequestCategory, VendorRequestInput } from "@/lib/types";
 
@@ -13,6 +14,7 @@ const categoryOptions: Array<{ label: string; value: VendorRequestCategory }> = 
 ];
 
 export function VendorRequestForm() {
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -35,6 +37,23 @@ export function VendorRequestForm() {
       targetType: "vendor_request",
     });
   }, []);
+
+  useEffect(() => {
+    const requestedCategory = searchParams.get("category");
+    const isValidCategory = categoryOptions.some(
+      (option) => option.value === requestedCategory
+    );
+
+    if (!isValidCategory || !requestedCategory) {
+      return;
+    }
+
+    setForm((current) =>
+      current.category === requestedCategory
+        ? current
+        : { ...current, category: requestedCategory as VendorRequestCategory }
+    );
+  }, [searchParams]);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

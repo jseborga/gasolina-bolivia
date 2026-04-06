@@ -957,62 +957,58 @@ export function Dashboard({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-              SurtiMapa
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-              Busca surtidores, talleres, gruas, auxilio y aditivos
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              {results.length} puntos visibles en mapa - {reportCount} reportes cargados
-            </p>
-          </div>
+      {isAdminMode ? (
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                SurtiMapa
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold text-slate-900">
+                Busca surtidores, talleres, gruas, auxilio y aditivos
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                {results.length} puntos visibles en mapa - {reportCount} reportes cargados
+              </p>
+            </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar surtidor, taller, grua, auxilio o aditivos"
-              className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
-            />
-            {!isAdminMode ? (
-              <button
-                type="button"
-                onClick={() => handleUseMyLocation()}
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar surtidor, taller, grua, auxilio o aditivos"
+                className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
+              />
+              <a
+                href="/sumate"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                  })
+                }
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white hover:bg-slate-800"
               >
-                {locationState === "loading" ? "Ubicando..." : "Usar mi ubicacion"}
-              </button>
-            ) : null}
-            <a
-              href="/sumate"
-              onClick={() =>
-                trackAppEvent({
-                  eventType: "open_vendor_join",
-                  targetType: "vendor_request",
-                })
-              }
-              className="rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Quiero publicar
-            </a>
-          </div>
+                Quiero publicar
+              </a>
+            </div>
 
-          <div className="text-xs text-slate-500">
-            {isAdminMode &&
-              "Modo admin: el mapa no se recentra en tu ubicacion para que puedas editar varios puntos sin perder la vista actual."}
-            {locationState === "granted" && "Ubicacion activada. Se priorizan los puntos mas cercanos y el mapa toma tu zona actual."}
-            {locationState === "denied" && "La ubicacion fue denegada. El mapa sigue funcionando."}
-            {locationState === "error" && "No se pudo obtener tu ubicacion en este navegador."}
-            {!isAdminMode &&
-              locationState === "idle" &&
-              "Busca o toca un marcador para ver estado, reputacion y contacto rapido."}
+            <div className="text-xs text-slate-500">
+              Modo admin: el mapa no se recentra en tu ubicacion para que puedas editar varios
+              puntos sin perder la vista actual.
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : (
+        <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar surtidor, taller, grua, auxilio o aditivos"
+            className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
+          />
+        </section>
+      )}
 
       {isAdminMode ? (
         <section className="rounded-3xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
@@ -1039,7 +1035,7 @@ export function Dashboard({
         </section>
       ) : null}
 
-      {quickResults.length > 0 ? (
+      {isAdminMode && quickResults.length > 0 ? (
         <section className="flex gap-2 overflow-x-auto pb-1">
           {quickResults.map((item) => {
             const title = item.kind === "station" ? item.station.name : item.service.name;
@@ -1074,7 +1070,7 @@ export function Dashboard({
       ) : null}
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="h-[58vh] min-h-[420px] sm:h-[70vh]">
+        <div className={isAdminMode ? "h-[58vh] min-h-[420px] sm:h-[70vh]" : "h-[72vh] min-h-[480px]"}>
           <StationsMap
             adminActionKey={adminActionKey}
             isAdminMode={isAdminMode}
@@ -1097,6 +1093,81 @@ export function Dashboard({
         </div>
       </section>
 
+      {!isAdminMode ? (
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                Publicar En SurtiMapa
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900">
+                Quiero publicar un anuncio o servicio
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Surtidor, taller mecanico, grua o aditivos. La solicitud entra a revision y
+                verificacion antes de publicarse.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <a
+                href="/sumate?category=estacion"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                    metadata: { category: "estacion", source: "home_cta" },
+                  })
+                }
+                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50"
+              >
+                Publicar surtidor
+              </a>
+              <a
+                href="/sumate?category=taller_mecanico"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                    metadata: { category: "taller_mecanico", source: "home_cta" },
+                  })
+                }
+                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50"
+              >
+                Publicar taller mecanico
+              </a>
+              <a
+                href="/sumate?category=grua"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                    metadata: { category: "grua", source: "home_cta" },
+                  })
+                }
+                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50"
+              >
+                Publicar grua
+              </a>
+              <a
+                href="/sumate?category=aditivos"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                    metadata: { category: "aditivos", source: "home_cta" },
+                  })
+                }
+                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50"
+              >
+                Publicar aditivos
+              </a>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {isAdminMode ? (
       <section
         ref={(node) => {
           detailSectionRef.current = node;
@@ -1719,6 +1790,7 @@ export function Dashboard({
           </div>
         )}
       </section>
+      ) : null}
     </div>
   );
 }
