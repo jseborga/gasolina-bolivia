@@ -13,6 +13,8 @@ import type { SupportServiceCategory } from "@/lib/types";
 
 const OVERPASS_ENDPOINT =
   process.env.OVERPASS_API_URL || "https://overpass-api.de/api/interpreter";
+const NOMINATIM_ENDPOINT =
+  process.env.NOMINATIM_BASE_URL || "https://nominatim.openstreetmap.org";
 
 const COMMON_STOPWORDS = new Set([
   "av",
@@ -46,6 +48,23 @@ type OverpassElement = {
   lat?: number;
   lon?: number;
   tags?: Record<string, string>;
+  type?: string;
+};
+
+type SearchBounds = {
+  east: number;
+  north: number;
+  south: number;
+  west: number;
+};
+
+type NominatimSearchResult = {
+  addresstype?: string;
+  boundingbox?: string[];
+  class?: string;
+  display_name?: string;
+  importance?: number;
+  osm_type?: string;
   type?: string;
 };
 
@@ -214,6 +233,90 @@ function unique(values: string[]) {
   }
 
   return result;
+}
+
+async function fetchJson(url: string) {
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: {
+      "accept-language": "es",
+      "user-agent": "SurtiMapaAdmin/1.0",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error resolviendo área OSM: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function getCountryCode(country: string) {
+  const normalized = normalizeText(country);
+  if (normalized === "bolivia") return "bo";
+  return "";
+}
+
+function parseBoundingBox(value?: string[]) {
+  if (!Array.isArray(value) || value.length < 4) return null;
+
+  const south = toNumber(value[0]);
+  const north = toNumber(value[1]);
+  const west = toNumber(value[2]);
+  const east = toNumber(value[3]);
+
+  if (south == null || north == null || west == null || east == null) {
+    return null;
+  }
+
+  return { south, north, west, east };
+}
+
+function pickSearchResult(results: NominatimSearchResult[]) {
+  const ranked = [...results].sort((left, right) => {
+    const leftAdministrative =
+      left.class === "boundary" || left.type === "administrative" || left.addresstype === "state";
+    const rightAdministrative =
+      right.class === "boundary" || right.type === "administrative" || right.addresstype === "state";
+
+    if (leftAdministrative !== rightAdministrative) {
+      return leftAdministrative ? -1 : 1;
+    }
+
+    return (right.importance ?? 0) - (left.importance ?? 0);
+  });
+
+  return ranked[0] ?? null;
+}
+
+async function resolveSearchBounds(request: OSMImportRequest): Promise<SearchBounds> {
+  const query = new URLSearchParams({
+    format: "jsonv2",
+    limit: "10",
+    q: `${request.department}, ${request.country ?? "Bolivia"}`,
+  });
+
+  const countryCode = getCountryCode(request.country ?? "Bolivia");
+  if (countryCode) {
+    query.set("countrycodes", countryCode);
+  }
+
+  const json = (await fetchJson(
+    `${NOMINATIM_ENDPOINT}/search?${query.toString()}`
+  )) as NominatimSearchResult[];
+
+  if (!Array.isArray(json) || json.length === 0) {
+    throw new Error("No se pudo ubicar el área solicitada en OpenStreetMap.");
+  }
+
+  const candidate = pickSearchResult(json);
+  const bounds = parseBoundingBox(candidate?.boundingbox);
+
+  if (!candidate || !bounds) {
+    throw new Error("OpenStreetMap no devolvió un área válida para la búsqueda.");
+  }
+
+  return bounds;
 }
 
 function buildAddress(
@@ -546,6 +649,100 @@ out center tags;
   }
 }
 
+function buildBBoxHeader(bounds: SearchBounds) {
+  return `[out:json][timeout:120][bbox:${bounds.south},${bounds.west},${bounds.north},${bounds.east}];`;
+}
+
+export async function buildResolvedOverpassQuery(request: OSMImportRequest) {
+  const bounds = await resolveSearchBounds(request);
+  const header = buildBBoxHeader(bounds);
+
+  if (request.target === "stations") {
+    return `
+${header}
+
+(
+  node["amenity"="fuel"];
+  way["amenity"="fuel"];
+  relation["amenity"="fuel"];
+);
+
+out center tags;
+`.trim();
+  }
+
+  switch (request.serviceCategory) {
+    case "taller_mecanico":
+      return `
+${header}
+
+(
+  node["shop"="car_repair"];
+  way["shop"="car_repair"];
+  relation["shop"="car_repair"];
+  node["craft"="car_repair"];
+  way["craft"="car_repair"];
+  relation["craft"="car_repair"];
+);
+
+out center tags;
+`.trim();
+    case "grua":
+      return `
+${header}
+
+(
+  node["service:vehicle:towing"="yes"];
+  way["service:vehicle:towing"="yes"];
+  relation["service:vehicle:towing"="yes"];
+  node["amenity"="towing"];
+  way["amenity"="towing"];
+  relation["amenity"="towing"];
+  node["name"~"(grua|grÃºa|tow|remolque)",i];
+  way["name"~"(grua|grÃºa|tow|remolque)",i];
+  relation["name"~"(grua|grÃºa|tow|remolque)",i];
+);
+
+out center tags;
+`.trim();
+    case "servicio_mecanico":
+      return `
+${header}
+
+(
+  node["shop"="car_repair"];
+  way["shop"="car_repair"];
+  relation["shop"="car_repair"];
+  node["service:vehicle:repair"="yes"];
+  way["service:vehicle:repair"="yes"];
+  relation["service:vehicle:repair"="yes"];
+  node["name"~"(auxilio|mecanico|mecÃ¡nico|movil|mÃ³vil)",i];
+  way["name"~"(auxilio|mecanico|mecÃ¡nico|movil|mÃ³vil)",i];
+  relation["name"~"(auxilio|mecanico|mecÃ¡nico|movil|mÃ³vil)",i];
+);
+
+out center tags;
+`.trim();
+    case "aditivos":
+      return `
+${header}
+
+(
+  node["shop"="car_parts"];
+  way["shop"="car_parts"];
+  relation["shop"="car_parts"];
+  node["name"~"(aditivo|lubricante|aceite)",i];
+  way["name"~"(aditivo|lubricante|aceite)",i];
+  relation["name"~"(aditivo|lubricante|aceite)",i];
+);
+
+out center tags;
+`.trim();
+    default:
+      throw new Error("La categorÃ­a de servicio OSM no es vÃ¡lida.");
+  }
+}
+
 export async function fetchOverpassElements(query: string) {
   const response = await fetch(OVERPASS_ENDPOINT, {
     body: query,
@@ -754,7 +951,7 @@ export async function buildOSMImportPreview(
   services: ServiceAdminRow[],
   maxItems = 80
 ): Promise<OSMImportPreviewResponse> {
-  const query = buildOverpassQuery(request);
+  const query = await buildResolvedOverpassQuery(request);
   const elements = await fetchOverpassElements(query);
 
   if (request.target === "stations") {
