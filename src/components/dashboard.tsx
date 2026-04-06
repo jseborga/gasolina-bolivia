@@ -84,7 +84,7 @@ type SearchResult =
       service: SupportServiceWithDistance;
     };
 
-type PublicMapFilter = "stations" | "servicio_mecanico" | "all";
+type PublicMapFilter = "stations" | "servicio_mecanico" | "all" | "none";
 type IncidentMapFilter =
   | "all"
   | "nearby"
@@ -406,7 +406,8 @@ export function Dashboard({
   const normalizedQuery = normalizeSearchValue(search);
 
   const results = useMemo<SearchResult[]>(() => {
-    const showStations = isAdminMode || publicMapFilter === "stations" || publicMapFilter === "all";
+    const showStations =
+      isAdminMode || publicMapFilter === "stations" || publicMapFilter === "all";
     const showServices =
       isAdminMode || publicMapFilter === "servicio_mecanico" || publicMapFilter === "all";
 
@@ -516,12 +517,6 @@ export function Dashboard({
     setShowReportForm(false);
   }, [selectedKey]);
 
-  useEffect(() => {
-    if (!isAdminMode && showIncidentFilters && selectedKey !== null) {
-      setSelectedKey(null);
-    }
-  }, [isAdminMode, selectedKey, showIncidentFilters]);
-
   const selectedResult = useMemo(
     () => results.find((item) => item.key === selectedKey) ?? null,
     [results, selectedKey]
@@ -595,7 +590,12 @@ export function Dashboard({
   const nearbyTrafficIncident = nearbyTrafficIncidents[0] ?? null;
   const selectedIncidentFilterLabel =
     INCIDENT_FILTER_OPTIONS.find(([value]) => value === incidentMapFilter)?.[1] ?? "Todos";
-  const incidentOnlyMode = !isAdminMode && showIncidentFilters;
+
+  const handleTogglePublicFilter = (nextFilter: Exclude<PublicMapFilter, "none">) => {
+    setShowIncidentFilters(false);
+    setShowPublishMenu(false);
+    setPublicMapFilter((current) => (current === nextFilter ? "none" : nextFilter));
+  };
 
   const handleUseMyLocation = (options?: { silent?: boolean; source?: "auto" | "button" }) => {
     if (isAdminMode) {
@@ -1374,6 +1374,192 @@ export function Dashboard({
         </section>
       ) : null}
 
+      {!isAdminMode ? (
+        <section className="rounded-[1.8rem] border border-white/80 bg-white/92 p-3 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+          <div className="rounded-[1.2rem] bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar estacion o auxilio"
+              className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            />
+          </div>
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5">
+            <button
+              type="button"
+              onClick={() => handleTogglePublicFilter("stations")}
+              aria-label="Estaciones de servicio"
+              title="Estaciones de servicio"
+              className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                publicMapFilter === "stations"
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "bg-white text-slate-700 ring-1 ring-slate-200"
+              }`}
+            >
+              ⛽
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTogglePublicFilter("servicio_mecanico")}
+              aria-label="Auxilio mecanico"
+              title="Auxilio mecanico"
+              className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                publicMapFilter === "servicio_mecanico"
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "bg-white text-slate-700 ring-1 ring-slate-200"
+              }`}
+            >
+              🔧
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTogglePublicFilter("all")}
+              className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                publicMapFilter === "all"
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "bg-white text-slate-700 ring-1 ring-slate-200"
+              }`}
+            >
+              Todo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowPublishMenu(false);
+                setShowIncidentFilters((current) => !current);
+              }}
+              className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold ring-1 ${
+                showIncidentFilters
+                  ? "bg-rose-600 text-white ring-rose-600"
+                  : "bg-rose-50 text-rose-700 ring-rose-200"
+              }`}
+            >
+              Incidentes
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowIncidentFilters(false);
+                setShowPublishMenu((current) => !current);
+              }}
+              className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold ${
+                showPublishMenu ? "bg-slate-700 text-white" : "bg-slate-950 text-white"
+              }`}
+            >
+              Publicar
+            </button>
+          </div>
+          {showIncidentFilters ? (
+            <div className="mt-3 space-y-2 rounded-[1.4rem] bg-slate-50 p-3 ring-1 ring-slate-200">
+              <div className="flex flex-wrap gap-2">
+                {INCIDENT_FILTER_OPTIONS.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setIncidentMapFilter(value)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                      incidentMapFilter === value
+                        ? "bg-slate-900 text-white"
+                        : "bg-white text-slate-700 ring-1 ring-slate-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {userLocation ? (
+                nearbyTrafficIncidents.length > 0 ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                      Cerca de ti
+                    </div>
+                    <div className="mt-1 space-y-1.5">
+                      {nearbyTrafficIncidents.map((item) => (
+                        <div
+                          key={`nearby-incident-${item.incident.id}`}
+                          className="flex items-center justify-between gap-3 text-xs text-amber-900"
+                        >
+                          <div className="min-w-0 truncate font-medium">
+                            {getIncidentTypeLabel(item.incident.incident_type)}
+                          </div>
+                          <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            {formatDistance(item.distanceKm)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500">
+                    No hay incidentes activos a menos de 1 km.
+                  </div>
+                )
+              ) : (
+                <div className="text-xs text-slate-500">
+                  Activa ubicacion para ver incidentes cercanos.
+                </div>
+              )}
+            </div>
+          ) : null}
+          {showPublishMenu ? (
+            <div className="mt-3 grid gap-2 rounded-[1.4rem] bg-slate-50 p-3 ring-1 ring-slate-200">
+              <a
+                href="/sumate?category=estacion"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                    metadata: { category: "estacion", source: "home_top_publish" },
+                  })
+                }
+                className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+              >
+                Publicar surtidor
+              </a>
+              <a
+                href="/sumate?category=taller_mecanico"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                    metadata: { category: "taller_mecanico", source: "home_top_publish" },
+                  })
+                }
+                className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+              >
+                Publicar taller mecanico
+              </a>
+              <a
+                href="/sumate?category=grua"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                    metadata: { category: "grua", source: "home_top_publish" },
+                  })
+                }
+                className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+              >
+                Publicar grua
+              </a>
+              <a
+                href="/sumate?category=aditivos"
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "open_vendor_join",
+                    targetType: "vendor_request",
+                    metadata: { category: "aditivos", source: "home_top_publish" },
+                  })
+                }
+                className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+              >
+                Publicar aditivos
+              </a>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       {isAdminMode && quickResults.length > 0 ? (
         <section className="flex gap-2 overflow-x-auto pb-1">
           {quickResults.map((item) => {
@@ -1494,7 +1680,7 @@ export function Dashboard({
       >
         <div
           className={`pointer-events-none absolute inset-x-0 z-[500] flex justify-center px-3 ${
-            isAdminMode ? "bottom-6" : "bottom-24 sm:bottom-6"
+            isAdminMode ? "bottom-4" : "bottom-2"
           }`}
         >
           <button
@@ -1598,7 +1784,7 @@ export function Dashboard({
                 </button>
               </div>
               <div className="mt-3 space-y-2 text-xs text-slate-600">
-                <div>1. Busca desde la barra inferior.</div>
+                <div>1. Usa el buscador y filtros de arriba.</div>
                 <div>2. Toca una estacion o servicio para ver informacion.</div>
                 <div>3. Usa el boton rojo para reportar incidentes.</div>
               </div>
@@ -1645,8 +1831,8 @@ export function Dashboard({
             onAdminToggleServicePublication={handleAdminToggleServicePublication}
             onAdminToggleServiceVerification={handleAdminToggleServiceVerification}
             onAdminToggleStationVerification={handleAdminToggleStationVerification}
-            services={incidentOnlyMode ? [] : mapServices}
-            stations={incidentOnlyMode ? [] : mapStations}
+            services={mapServices}
+            stations={mapStations}
             selectedKey={selectedKey}
             onRequestReportStation={handleRequestReportStation}
             onSelectKey={(key) => handleSelectResult(key, "map")}
@@ -1655,200 +1841,6 @@ export function Dashboard({
           />
         </div>
       </section>
-
-      {!isAdminMode ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-3 z-[650] flex justify-center px-3">
-          <div className="pointer-events-auto w-full max-w-md rounded-[1.8rem] border border-white/80 bg-white/92 p-3 shadow-[0_18px_48px_rgba(15,23,42,0.18)] backdrop-blur-xl">
-            <div className="rounded-[1.2rem] bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar estacion o auxilio"
-                className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-              />
-            </div>
-            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowIncidentFilters(false);
-                  setShowPublishMenu(false);
-                  setPublicMapFilter("stations");
-                }}
-                aria-label="Estaciones de servicio"
-                title="Estaciones de servicio"
-                className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                  publicMapFilter === "stations"
-                    ? "bg-slate-950 text-white shadow-sm"
-                    : "bg-white text-slate-700 ring-1 ring-slate-200"
-                }`}
-              >
-                ⛽
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowIncidentFilters(false);
-                  setShowPublishMenu(false);
-                  setPublicMapFilter("servicio_mecanico");
-                }}
-                aria-label="Auxilio mecanico"
-                title="Auxilio mecanico"
-                className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                  publicMapFilter === "servicio_mecanico"
-                    ? "bg-slate-950 text-white shadow-sm"
-                    : "bg-white text-slate-700 ring-1 ring-slate-200"
-                }`}
-              >
-                🔧
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowIncidentFilters(false);
-                  setShowPublishMenu(false);
-                  setPublicMapFilter("all");
-                }}
-                className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                  publicMapFilter === "all"
-                    ? "bg-slate-950 text-white shadow-sm"
-                    : "bg-white text-slate-700 ring-1 ring-slate-200"
-                }`}
-              >
-                Todo
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPublishMenu(false);
-                  setShowIncidentFilters((current) => !current);
-                }}
-                className="shrink-0 rounded-full bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-200"
-              >
-                Incidentes
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowIncidentFilters(false);
-                  setShowPublishMenu((current) => !current);
-                }}
-                className="shrink-0 rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white"
-              >
-                Publicar
-              </button>
-            </div>
-            {showIncidentFilters ? (
-              <div className="mt-3 space-y-2 rounded-[1.4rem] bg-slate-50 p-3 ring-1 ring-slate-200">
-                <div className="flex flex-wrap gap-2">
-                  {INCIDENT_FILTER_OPTIONS.map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setIncidentMapFilter(value)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                        incidentMapFilter === value
-                          ? "bg-slate-900 text-white"
-                          : "bg-white text-slate-700 ring-1 ring-slate-200"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {userLocation ? (
-                  nearbyTrafficIncidents.length > 0 ? (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">
-                        Cerca de ti
-                      </div>
-                      <div className="mt-1 space-y-1.5">
-                        {nearbyTrafficIncidents.map((item) => (
-                          <div
-                            key={`nearby-incident-${item.incident.id}`}
-                            className="flex items-center justify-between gap-3 text-xs text-amber-900"
-                          >
-                            <div className="min-w-0 truncate font-medium">
-                              {getIncidentTypeLabel(item.incident.incident_type)}
-                            </div>
-                            <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                              {formatDistance(item.distanceKm)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-slate-500">
-                      No hay incidentes activos a menos de 1 km.
-                    </div>
-                  )
-                ) : (
-                  <div className="text-xs text-slate-500">
-                    Activa ubicacion para ver incidentes cercanos.
-                  </div>
-                )}
-              </div>
-            ) : null}
-            {showPublishMenu ? (
-              <div className="mt-3 grid gap-2 rounded-[1.4rem] bg-slate-50 p-3 ring-1 ring-slate-200">
-                <a
-                  href="/sumate?category=estacion"
-                  onClick={() =>
-                    trackAppEvent({
-                      eventType: "open_vendor_join",
-                      targetType: "vendor_request",
-                      metadata: { category: "estacion", source: "home_bottom_publish" },
-                    })
-                  }
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
-                >
-                  Publicar surtidor
-                </a>
-                <a
-                  href="/sumate?category=taller_mecanico"
-                  onClick={() =>
-                    trackAppEvent({
-                      eventType: "open_vendor_join",
-                      targetType: "vendor_request",
-                      metadata: { category: "taller_mecanico", source: "home_bottom_publish" },
-                    })
-                  }
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
-                >
-                  Publicar taller mecanico
-                </a>
-                <a
-                  href="/sumate?category=grua"
-                  onClick={() =>
-                    trackAppEvent({
-                      eventType: "open_vendor_join",
-                      targetType: "vendor_request",
-                      metadata: { category: "grua", source: "home_bottom_publish" },
-                    })
-                  }
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
-                >
-                  Publicar grua
-                </a>
-                <a
-                  href="/sumate?category=aditivos"
-                  onClick={() =>
-                    trackAppEvent({
-                      eventType: "open_vendor_join",
-                      targetType: "vendor_request",
-                      metadata: { category: "aditivos", source: "home_bottom_publish" },
-                    })
-                  }
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
-                >
-                  Publicar aditivos
-                </a>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
 
       {isAdminMode ? (
       <section
