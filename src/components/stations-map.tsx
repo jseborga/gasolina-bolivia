@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -28,6 +28,11 @@ type StationsMapProps = {
   onQuickReportStation?: (
     input: ReportInput
   ) => Promise<{ ok: boolean; message: string }>;
+  onSubmitStationReview?: (input: {
+    comment?: string;
+    score: number;
+    stationId: number;
+  }) => Promise<{ ok: boolean; message: string }>;
   onSubmitServiceReview?: (input: {
     comment?: string;
     score: number;
@@ -40,6 +45,56 @@ type StationsMapProps = {
   onRequestReportStation: (stationId: number, source: "detail" | "popup") => void;
   userLocation: { lat: number; lng: number } | null;
 };
+
+type PopupTab = "info" | "report" | "review";
+
+function PopupTabButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+        active
+          ? "bg-slate-900 text-white"
+          : "border border-slate-300 bg-white text-slate-700"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ChoiceChip({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-2 text-xs font-medium ${
+        active
+          ? "bg-slate-900 text-white"
+          : "border border-slate-300 bg-white text-slate-700"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
 
 function StationQuickReportPopup({
   onSubmit,
@@ -85,46 +140,178 @@ function StationQuickReportPopup({
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         Reporte rapido
       </div>
-      <div className="grid gap-2">
-        <select
-          value={fuelType}
-          onChange={(event) => setFuelType(event.target.value as ReportInput["fuel_type"])}
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-        >
-          <option value="especial">Especial</option>
-          <option value="premium">Premium</option>
-          <option value="diesel">Diesel</option>
-        </select>
-        <select
-          value={availabilityStatus}
-          onChange={(event) =>
-            setAvailabilityStatus(event.target.value as ReportInput["availability_status"])
-          }
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-        >
-          <option value="si_hay">Si hay</option>
-          <option value="no_hay">No hay</option>
-          <option value="sin_dato">Sin dato</option>
-        </select>
-        <select
-          value={queueStatus}
-          onChange={(event) => setQueueStatus(event.target.value as ReportInput["queue_status"])}
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-        >
-          <option value="sin_dato">Sin fila</option>
-          <option value="corta">Fila corta</option>
-          <option value="media">Fila media</option>
-          <option value="larga">Fila larga</option>
-        </select>
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Combustible
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ChoiceChip
+              active={fuelType === "especial"}
+              label="Especial"
+              onClick={() => setFuelType("especial")}
+            />
+            <ChoiceChip
+              active={fuelType === "premium"}
+              label="Premium"
+              onClick={() => setFuelType("premium")}
+            />
+            <ChoiceChip
+              active={fuelType === "diesel"}
+              label="Diesel"
+              onClick={() => setFuelType("diesel")}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Estado
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ChoiceChip
+              active={availabilityStatus === "si_hay"}
+              label="Si hay"
+              onClick={() => setAvailabilityStatus("si_hay")}
+            />
+            <ChoiceChip
+              active={availabilityStatus === "no_hay"}
+              label="No hay"
+              onClick={() => setAvailabilityStatus("no_hay")}
+            />
+            <ChoiceChip
+              active={availabilityStatus === "sin_dato"}
+              label="Sin dato"
+              onClick={() => setAvailabilityStatus("sin_dato")}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Fila
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ChoiceChip
+              active={queueStatus === "sin_dato"}
+              label="Sin fila"
+              onClick={() => setQueueStatus("sin_dato")}
+            />
+            <ChoiceChip
+              active={queueStatus === "corta"}
+              label="Corta"
+              onClick={() => setQueueStatus("corta")}
+            />
+            <ChoiceChip
+              active={queueStatus === "media"}
+              label="Media"
+              onClick={() => setQueueStatus("media")}
+            />
+            <ChoiceChip
+              active={queueStatus === "larga"}
+              label="Larga"
+              onClick={() => setQueueStatus("larga")}
+            />
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={submit}
           disabled={submitting}
           className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
         >
-          {submitting ? "Enviando..." : "Enviar rapido"}
+          {submitting ? "Enviando..." : "Enviar estado"}
         </button>
       </div>
+      {feedback ? (
+        <div
+          className={`rounded-lg px-2 py-1.5 text-xs ${
+            feedback.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+          }`}
+        >
+          {feedback.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StationReviewPopup({
+  onSubmit,
+  stationId,
+}: {
+  onSubmit?: (input: {
+    comment?: string;
+    score: number;
+    stationId: number;
+  }) => Promise<{ ok: boolean; message: string }>;
+  stationId: number;
+}) {
+  const [score, setScore] = useState(5);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const submit = async () => {
+    if (!onSubmit) return;
+
+    setSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const result = await onSubmit({
+        comment: comment.trim() || undefined,
+        score,
+        stationId,
+      });
+      setFeedback(result);
+      if (result.ok) {
+        setComment("");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Calificacion anonima
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {Array.from({ length: 5 }, (_, index) => {
+          const value = index + 1;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setScore(value)}
+              className={`rounded-lg px-2 py-1 text-lg leading-none ${
+                value <= score ? "bg-amber-100 text-amber-600" : "bg-white text-slate-300"
+              }`}
+              aria-label={`${value} estrellas`}
+            >
+              {"\u2605"}
+            </button>
+          );
+        })}
+      </div>
+      <textarea
+        value={comment}
+        onChange={(event) => setComment(event.target.value.slice(0, 180))}
+        placeholder="Comentario corto opcional"
+        rows={2}
+        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={submitting}
+        className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+      >
+        {submitting ? "Enviando..." : "Enviar calificacion"}
+      </button>
       {feedback ? (
         <div
           className={`rounded-lg px-2 py-1.5 text-xs ${
@@ -178,23 +365,30 @@ function ServiceReviewPopup({
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Review anonima
+        Calificacion anonima
       </div>
-      <select
-        value={score}
-        onChange={(event) => setScore(Number(event.target.value))}
-        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-      >
-        <option value={5}>5 estrellas</option>
-        <option value={4}>4 estrellas</option>
-        <option value={3}>3 estrellas</option>
-        <option value={2}>2 estrellas</option>
-        <option value={1}>1 estrella</option>
-      </select>
+      <div className="flex flex-wrap gap-1">
+        {Array.from({ length: 5 }, (_, index) => {
+          const value = index + 1;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setScore(value)}
+              className={`rounded-lg px-2 py-1 text-lg leading-none ${
+                value <= score ? "bg-amber-100 text-amber-600" : "bg-white text-slate-300"
+              }`}
+              aria-label={`${value} estrellas`}
+            >
+              ★
+            </button>
+          );
+        })}
+      </div>
       <textarea
         value={comment}
         onChange={(event) => setComment(event.target.value.slice(0, 180))}
-        placeholder="Review corta y anonima"
+        placeholder="Comentario corto opcional"
         rows={2}
         className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
       />
@@ -204,7 +398,7 @@ function ServiceReviewPopup({
         disabled={submitting}
         className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
       >
-        {submitting ? "Enviando..." : "Enviar review"}
+        {submitting ? "Enviando..." : "Enviar calificacion"}
       </button>
       {feedback ? (
         <div
@@ -215,6 +409,311 @@ function ServiceReviewPopup({
           {feedback.message}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function StationPopupCard({
+  isAdminMode,
+  isBusy,
+  onAdminDeleteStation,
+  onAdminOpenEditor,
+  onAdminToggleStationVerification,
+  onQuickReportStation,
+  onSubmitStationReview,
+  onRequestReportStation,
+  station,
+}: {
+  isAdminMode: boolean;
+  isBusy: boolean;
+  onAdminDeleteStation?: (stationId: number) => void;
+  onAdminOpenEditor?: (key: string) => void;
+  onAdminToggleStationVerification?: (stationId: number) => void;
+  onQuickReportStation?: (
+    input: ReportInput
+  ) => Promise<{ ok: boolean; message: string }>;
+  onSubmitStationReview?: (input: {
+    comment?: string;
+    score: number;
+    stationId: number;
+  }) => Promise<{ ok: boolean; message: string }>;
+  onRequestReportStation: (stationId: number, source: "detail" | "popup") => void;
+  station: StationWithLatest;
+}) {
+  const [tab, setTab] = useState<PopupTab>("info");
+  const key = `station-${station.id}`;
+
+  return (
+    <div className="min-w-[220px] space-y-3 text-sm text-slate-800">
+      <div className="font-semibold">{station.name}</div>
+      <div className="flex flex-wrap gap-2">
+        <PopupTabButton active={tab === "info"} onClick={() => setTab("info")}>
+          Info
+        </PopupTabButton>
+        <PopupTabButton active={tab === "report"} onClick={() => setTab("report")}>
+          Estado
+        </PopupTabButton>
+        <PopupTabButton active={tab === "review"} onClick={() => setTab("review")}>
+          Calificar
+        </PopupTabButton>
+      </div>
+
+      {tab === "info" ? (
+        <div className="space-y-2">
+          <div>{station.zone || "Sin zona"}</div>
+          <RatingStars score={station.reputation_score} count={station.reputation_votes} />
+          {isAdminMode && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span
+                className={`rounded-full px-2 py-1 ${
+                  station.is_verified
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                {station.is_verified ? "Validada" : "Pendiente"}
+              </span>
+              <span
+                className={`rounded-full px-2 py-1 ${
+                  station.is_active ? "bg-slate-100 text-slate-700" : "bg-rose-100 text-rose-700"
+                }`}
+              >
+                {station.is_active ? "Activa" : "Inactiva"}
+              </span>
+            </div>
+          )}
+          <div>Estado: {formatAvailability(station.latestReport?.availability_status)}</div>
+          <div>Combustible: {formatFuelType(station.latestReport?.fuel_type)}</div>
+          <div>Fila: {formatQueue(station.latestReport?.queue_status)}</div>
+          <div>{station.address || "Sin direccion"}</div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setTab("report")}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+            >
+              Enviar estado
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("review")}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+            >
+              Calificar
+            </button>
+            {isAdminMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onAdminOpenEditor?.(key)}
+                  disabled={isBusy}
+                  className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-700 disabled:opacity-60"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAdminToggleStationVerification?.(station.id)}
+                  disabled={isBusy}
+                  className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 disabled:opacity-60"
+                >
+                  {station.is_verified ? "Quitar valid." : "Validar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAdminDeleteStation?.(station.id)}
+                  disabled={isBusy}
+                  className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-60"
+                >
+                  Eliminar
+                </button>
+              </>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => onRequestReportStation(station.id, "popup")}
+            className="text-xs font-medium text-sky-700 underline underline-offset-2"
+          >
+            Abrir formulario completo
+          </button>
+        </div>
+      ) : tab === "report" ? (
+        <StationQuickReportPopup onSubmit={onQuickReportStation} station={station} />
+      ) : (
+        <StationReviewPopup onSubmit={onSubmitStationReview} stationId={station.id} />
+      )}
+    </div>
+  );
+}
+
+function ServicePopupCard({
+  isAdminMode,
+  isBusy,
+  onAdminDeleteService,
+  onAdminOpenEditor,
+  onAdminToggleServicePublication,
+  onAdminToggleServiceVerification,
+  onSubmitServiceReview,
+  phoneHref,
+  service,
+  whatsappHref,
+}: {
+  isAdminMode: boolean;
+  isBusy: boolean;
+  onAdminDeleteService?: (serviceId: number) => void;
+  onAdminOpenEditor?: (key: string) => void;
+  onAdminToggleServicePublication?: (serviceId: number) => void;
+  onAdminToggleServiceVerification?: (serviceId: number) => void;
+  onSubmitServiceReview?: (input: {
+    comment?: string;
+    score: number;
+    serviceId: number;
+  }) => Promise<{ ok: boolean; message: string }>;
+  phoneHref: string;
+  service: SupportServiceWithDistance;
+  whatsappHref: string;
+}) {
+  const [tab, setTab] = useState<PopupTab>("info");
+  const key = `service-${service.id}`;
+
+  return (
+    <div className="min-w-[220px] space-y-3 text-sm text-slate-800">
+      <div className="font-semibold">{service.name}</div>
+      <div className="flex flex-wrap gap-2">
+        <PopupTabButton active={tab === "info"} onClick={() => setTab("info")}>
+          Info
+        </PopupTabButton>
+        <PopupTabButton active={tab === "review"} onClick={() => setTab("review")}>
+          Calificar
+        </PopupTabButton>
+      </div>
+
+      {tab === "info" ? (
+        <div className="space-y-2">
+          <div>{getSupportServiceLabel(service.category)}</div>
+          <RatingStars score={service.rating_score} count={service.rating_count} />
+          <div>{[service.zone, service.city].filter(Boolean).join(" | ") || "Sin zona"}</div>
+          <div>{service.address || "Sin direccion"}</div>
+          {service.price_text && <div>Precio: {service.price_text}</div>}
+          {service.meeting_point && <div>Punto: {service.meeting_point}</div>}
+          {service.description && <div>{service.description}</div>}
+          {(service.phone || service.whatsapp_number) && (
+            <div>Contacto: {formatContactLabel(service.phone ?? service.whatsapp_number)}</div>
+          )}
+          {isAdminMode && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span
+                className={`rounded-full px-2 py-1 ${
+                  service.is_verified
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                {service.is_verified ? "Validado" : "Pendiente"}
+              </span>
+              <span
+                className={`rounded-full px-2 py-1 ${
+                  service.is_published
+                    ? "bg-sky-100 text-sky-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                {service.is_published ? "Publicado" : "Borrador"}
+              </span>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {whatsappHref && (
+              <a
+                href={whatsappHref}
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "contact_whatsapp",
+                    targetId: service.id,
+                    targetName: service.name,
+                    targetType: "service",
+                    metadata: {
+                      category: service.category,
+                      source: "popup",
+                    },
+                  })
+                }
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
+              >
+                WhatsApp
+              </a>
+            )}
+            {phoneHref && (
+              <a
+                href={phoneHref}
+                onClick={() =>
+                  trackAppEvent({
+                    eventType: "contact_phone",
+                    targetId: service.id,
+                    targetName: service.name,
+                    targetType: "service",
+                    metadata: {
+                      category: service.category,
+                      source: "popup",
+                    },
+                  })
+                }
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+              >
+                Llamar
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => setTab("review")}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+            >
+              Calificar
+            </button>
+            {isAdminMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onAdminOpenEditor?.(key)}
+                  disabled={isBusy}
+                  className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-700 disabled:opacity-60"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAdminToggleServiceVerification?.(service.id)}
+                  disabled={isBusy}
+                  className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 disabled:opacity-60"
+                >
+                  {service.is_verified ? "Quitar valid." : "Validar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAdminToggleServicePublication?.(service.id)}
+                  disabled={isBusy}
+                  className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 disabled:opacity-60"
+                >
+                  {service.is_published ? "Borrador" : "Publicar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAdminDeleteService?.(service.id)}
+                  disabled={isBusy}
+                  className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-60"
+                >
+                  Eliminar
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <ServiceReviewPopup onSubmit={onSubmitServiceReview} serviceId={service.id} />
+      )}
     </div>
   );
 }
@@ -340,6 +839,7 @@ export default function StationsMap({
   onAdminToggleServiceVerification,
   onAdminToggleStationVerification,
   onQuickReportStation,
+  onSubmitStationReview,
   onSubmitServiceReview,
   services,
   stations,
@@ -399,125 +899,18 @@ export default function StationsMap({
               }}
             >
               <Popup>
-                <div className="min-w-[220px] space-y-2 text-sm text-slate-800">
-                  <div className="font-semibold">{service.name}</div>
-                  <div>{getSupportServiceLabel(service.category)}</div>
-                  <RatingStars score={service.rating_score} count={service.rating_count} />
-                  <div>{[service.zone, service.city].filter(Boolean).join(" | ") || "Sin zona"}</div>
-                  <div>{service.address || "Sin direccion"}</div>
-                  {service.price_text && <div>Precio: {service.price_text}</div>}
-                  {service.meeting_point && <div>Punto: {service.meeting_point}</div>}
-                  {service.description && <div>{service.description}</div>}
-                  {(service.phone || service.whatsapp_number) && (
-                    <div>Contacto: {formatContactLabel(service.phone ?? service.whatsapp_number)}</div>
-                  )}
-                  {isAdminMode && (
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <span
-                        className={`rounded-full px-2 py-1 ${
-                          service.is_verified
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {service.is_verified ? "Validado" : "Pendiente"}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-1 ${
-                          service.is_published
-                            ? "bg-sky-100 text-sky-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        {service.is_published ? "Publicado" : "Borrador"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {whatsappHref && (
-                      <a
-                        href={whatsappHref}
-                        onClick={() =>
-                          trackAppEvent({
-                            eventType: "contact_whatsapp",
-                            targetId: service.id,
-                            targetName: service.name,
-                            targetType: "service",
-                            metadata: {
-                              category: service.category,
-                              source: "popup",
-                            },
-                          })
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
-                      >
-                        WhatsApp
-                      </a>
-                    )}
-                    {phoneHref && (
-                      <a
-                        href={phoneHref}
-                        onClick={() =>
-                          trackAppEvent({
-                            eventType: "contact_phone",
-                            targetId: service.id,
-                            targetName: service.name,
-                            targetType: "service",
-                            metadata: {
-                              category: service.category,
-                              source: "popup",
-                            },
-                          })
-                        }
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
-                      >
-                        Llamar
-                      </a>
-                    )}
-                    {isAdminMode ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onAdminOpenEditor?.(key)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-700 disabled:opacity-60"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onAdminToggleServiceVerification?.(service.id)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 disabled:opacity-60"
-                        >
-                          {service.is_verified ? "Quitar valid." : "Validar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onAdminToggleServicePublication?.(service.id)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 disabled:opacity-60"
-                        >
-                          {service.is_published ? "Borrador" : "Publicar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onAdminDeleteService?.(service.id)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-60"
-                        >
-                          Eliminar
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
-                  <ServiceReviewPopup
-                    onSubmit={onSubmitServiceReview}
-                    serviceId={service.id}
-                  />
-                </div>
+                <ServicePopupCard
+                  isAdminMode={isAdminMode}
+                  isBusy={isBusy}
+                  onAdminDeleteService={onAdminDeleteService}
+                  onAdminOpenEditor={onAdminOpenEditor}
+                  onAdminToggleServicePublication={onAdminToggleServicePublication}
+                  onAdminToggleServiceVerification={onAdminToggleServiceVerification}
+                  onSubmitServiceReview={onSubmitServiceReview}
+                  phoneHref={phoneHref}
+                  service={service}
+                  whatsappHref={whatsappHref}
+                />
               </Popup>
             </Marker>
           );
@@ -544,83 +937,17 @@ export default function StationsMap({
               }}
             >
               <Popup>
-                <div className="min-w-[220px] space-y-2 text-sm text-slate-800">
-                  <div className="font-semibold">{station.name}</div>
-                  <div>{station.zone || "Sin zona"}</div>
-                  <RatingStars
-                    score={station.reputation_score}
-                    count={station.reputation_votes}
-                  />
-                  {isAdminMode && (
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <span
-                        className={`rounded-full px-2 py-1 ${
-                          station.is_verified
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {station.is_verified ? "Validada" : "Pendiente"}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-1 ${
-                          station.is_active
-                            ? "bg-slate-100 text-slate-700"
-                            : "bg-rose-100 text-rose-700"
-                        }`}
-                      >
-                        {station.is_active ? "Activa" : "Inactiva"}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    Estado: {formatAvailability(station.latestReport?.availability_status)}
-                  </div>
-                  <div>Combustible: {formatFuelType(station.latestReport?.fuel_type)}</div>
-                  <div>Fila: {formatQueue(station.latestReport?.queue_status)}</div>
-                  <div>{station.address || "Sin direccion"}</div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onRequestReportStation(station.id, "popup")}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
-                    >
-                      Informar estado
-                    </button>
-                    {isAdminMode ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onAdminOpenEditor?.(key)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-700 disabled:opacity-60"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onAdminToggleStationVerification?.(station.id)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 disabled:opacity-60"
-                        >
-                          {station.is_verified ? "Quitar valid." : "Validar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onAdminDeleteStation?.(station.id)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-60"
-                        >
-                          Eliminar
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
-                  <StationQuickReportPopup
-                    onSubmit={onQuickReportStation}
-                    station={station}
-                  />
-                </div>
+                <StationPopupCard
+                  isAdminMode={isAdminMode}
+                  isBusy={isBusy}
+                  onAdminDeleteStation={onAdminDeleteStation}
+                  onAdminOpenEditor={onAdminOpenEditor}
+                  onAdminToggleStationVerification={onAdminToggleStationVerification}
+                  onQuickReportStation={onQuickReportStation}
+                  onSubmitStationReview={onSubmitStationReview}
+                  onRequestReportStation={onRequestReportStation}
+                  station={station}
+                />
               </Popup>
             </Marker>
           );

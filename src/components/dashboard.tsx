@@ -398,10 +398,23 @@ export function Dashboard({
   }, [normalizedQuery, servicesWithDistance, stationsWithDistance]);
 
   useEffect(() => {
-    if (!selectedKey || !results.some((item) => item.key === selectedKey)) {
-      setSelectedKey(results[0]?.key ?? null);
+    const hasSelected = selectedKey
+      ? results.some((item) => item.key === selectedKey)
+      : false;
+
+    if (hasSelected) {
+      return;
     }
-  }, [results, selectedKey]);
+
+    if (isAdminMode) {
+      if (selectedKey !== null) {
+        setSelectedKey(null);
+      }
+      return;
+    }
+
+    setSelectedKey(results[0]?.key ?? null);
+  }, [isAdminMode, results, selectedKey]);
 
   useEffect(() => {
     if (isAdminMode || !userLocation || locationState !== "granted" || didAutoPickNearest) return;
@@ -837,6 +850,58 @@ export function Dashboard({
     return result;
   };
 
+  const handleSubmitStationReview = async (input: {
+    comment?: string;
+    score: number;
+    stationId: number;
+  }) => {
+    try {
+      const visitorId = ensureVisitorId();
+      const res = await fetch("/api/station-reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          comment: input.comment,
+          latitude: userLocation?.lat ?? null,
+          longitude: userLocation?.lng ?? null,
+          score: input.score,
+          stationId: input.stationId,
+          visitorId,
+        }),
+      });
+
+      const json = (await res.json()) as {
+        error?: string;
+        reputationScore?: number;
+        reputationVotes?: number;
+      };
+
+      if (!res.ok) {
+        throw new Error(json.error || "No se pudo guardar la calificacion.");
+      }
+
+      setStations((current) =>
+        current.map((station) =>
+          station.id === input.stationId
+            ? {
+                ...station,
+                reputation_score: json.reputationScore ?? station.reputation_score,
+                reputation_votes: json.reputationVotes ?? station.reputation_votes,
+              }
+            : station
+        )
+      );
+
+      return { ok: true, message: "Calificacion enviada." };
+    } catch (error) {
+      return {
+        ok: false,
+        message:
+          error instanceof Error ? error.message : "No se pudo guardar la calificacion.",
+      };
+    }
+  };
+
   const handleSubmitServiceReview = async (input: {
     comment?: string;
     score: number;
@@ -1014,6 +1079,7 @@ export function Dashboard({
             adminActionKey={adminActionKey}
             isAdminMode={isAdminMode}
             onQuickReportStation={handleQuickReport}
+            onSubmitStationReview={handleSubmitStationReview}
             onSubmitServiceReview={handleSubmitServiceReview}
             onAdminDeleteService={handleAdminDeleteService}
             onAdminDeleteStation={handleAdminDeleteStation}
