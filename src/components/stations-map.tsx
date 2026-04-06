@@ -585,7 +585,7 @@ function IncidentDraftPopup({
   };
 
   return (
-    <div className="max-h-[52vh] w-[78vw] min-w-[220px] max-w-[280px] space-y-3 overflow-y-auto pr-1 text-xs text-slate-800 sm:max-h-[420px] sm:w-[280px]">
+    <div className="max-h-[52vh] w-full max-w-[280px] space-y-3 overflow-y-auto pr-1 text-xs text-slate-800 sm:max-h-[420px]">
       <div>
         <div className="text-sm font-semibold text-slate-900">Nuevo incidente</div>
         <div className="text-[11px] text-slate-500">
@@ -633,7 +633,8 @@ function IncidentDraftPopup({
         value={description}
         onChange={(event) => setDescription(event.target.value.slice(0, 180))}
         placeholder="Detalle corto opcional"
-        className="min-h-[72px] w-full rounded-xl border border-slate-300 px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-slate-500"
+        rows={3}
+        className="block min-h-[72px] max-h-[120px] w-full resize-none overflow-y-auto rounded-xl border border-slate-300 px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-slate-500"
       />
 
       <div className="flex gap-2">
@@ -641,17 +642,21 @@ function IncidentDraftPopup({
           type="button"
           onClick={submit}
           disabled={submitting}
-          className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white disabled:opacity-60"
+          aria-label="Publicar incidente"
+          title="Publicar incidente"
+          className="flex h-10 flex-1 items-center justify-center rounded-lg bg-slate-900 text-sm font-semibold text-white disabled:opacity-60"
         >
-          {submitting ? "Enviando..." : "✓ Publicar"}
+          {submitting ? "…" : "✓"}
         </button>
         <button
           type="button"
           onClick={onCancel}
           disabled={submitting}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700 disabled:opacity-60"
+          aria-label="Cancelar"
+          title="Cancelar"
+          className="flex h-10 w-11 items-center justify-center rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 disabled:opacity-60"
         >
-          ✕ Cancelar
+          ✕
         </button>
       </div>
 
