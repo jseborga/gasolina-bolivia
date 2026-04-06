@@ -293,6 +293,7 @@ export function Dashboard({
     "idle" | "loading" | "granted" | "denied" | "error"
   >("idle");
   const [locationFocusKey, setLocationFocusKey] = useState(0);
+  const [showHomeGuide, setShowHomeGuide] = useState(false);
   const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
   const [incidentMapFilter, setIncidentMapFilter] = useState<IncidentMapFilter>("all");
   const [showIncidentFilters, setShowIncidentFilters] = useState(false);
@@ -329,6 +330,15 @@ export function Dashboard({
       },
     });
   }, [initialServices.length, initialStations.length, initialTrafficIncidents.length]);
+
+  useEffect(() => {
+    if (isAdminMode || typeof window === "undefined") {
+      return;
+    }
+
+    const guideDismissed = window.localStorage.getItem("surtimapa-home-guide-dismissed");
+    setShowHomeGuide(guideDismissed !== "1");
+  }, [isAdminMode]);
 
   const stationsWithDistance = useMemo(() => {
     return stations.map((station) => {
@@ -1242,7 +1252,7 @@ export function Dashboard({
   const quickResults = results.slice(0, 8);
 
   return (
-    <div className={isAdminMode ? "space-y-4" : "space-y-3"}>
+    <div className={isAdminMode ? "space-y-4" : "space-y-3 pb-36 sm:pb-40"}>
       {isAdminMode ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="space-y-4">
@@ -1285,141 +1295,7 @@ export function Dashboard({
             </div>
           </div>
         </section>
-      ) : (
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(191,219,254,0.45),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(226,232,240,0.65),transparent_42%)]" />
-          <div className="relative space-y-4">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
-                SurtiMapa
-              </p>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
-                Gasolina e incidentes, rapido.
-              </h1>
-              <p className="text-sm text-slate-500">
-                Busca un punto y deja que el mapa haga el resto.
-              </p>
-            </div>
-
-            <div className="rounded-[1.5rem] bg-white/90 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] ring-1 ring-slate-200/80">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar estacion o auxilio"
-                className="w-full rounded-[1.1rem] border-0 bg-transparent px-3 py-3 text-base text-slate-900 outline-none placeholder:text-slate-400"
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setPublicMapFilter("stations")}
-                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                  publicMapFilter === "stations"
-                    ? "bg-slate-950 text-white shadow-sm"
-                    : "bg-white/85 text-slate-700 ring-1 ring-slate-200"
-                }`}
-              >
-                Estaciones
-              </button>
-              <button
-                type="button"
-                onClick={() => setPublicMapFilter("servicio_mecanico")}
-                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                  publicMapFilter === "servicio_mecanico"
-                    ? "bg-slate-950 text-white shadow-sm"
-                    : "bg-white/85 text-slate-700 ring-1 ring-slate-200"
-                }`}
-              >
-                Auxilio mecanico
-              </button>
-              <button
-                type="button"
-                onClick={() => setPublicMapFilter("all")}
-                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                  publicMapFilter === "all"
-                    ? "bg-slate-950 text-white shadow-sm"
-                    : "bg-white/85 text-slate-700 ring-1 ring-slate-200"
-                }`}
-              >
-                Todo
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowIncidentFilters((current) => !current)}
-              className="flex w-full items-center justify-between gap-3 rounded-[1.4rem] bg-slate-950 px-4 py-3 text-left text-white shadow-lg shadow-slate-950/15"
-            >
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
-                  Incidentes
-                </div>
-                <div className="truncate text-sm font-semibold">
-                  {trafficIncidents.length} activos · {selectedIncidentFilterLabel}
-                </div>
-                {nearbyTrafficIncidents.length > 0 ? (
-                  <div className="text-xs text-amber-300">
-                    {nearbyTrafficIncidents.length} cerca de tu ubicacion
-                  </div>
-                ) : null}
-              </div>
-              <div className="shrink-0 rounded-full bg-white/12 px-3 py-1 text-xs font-semibold text-white">
-                {showIncidentFilters ? "Cerrar" : "Ver"}
-              </div>
-            </button>
-
-            {showIncidentFilters ? (
-              <div className="space-y-3 rounded-[1.4rem] bg-white/88 p-3 ring-1 ring-slate-200/80 backdrop-blur">
-                <div className="flex flex-wrap gap-2">
-                  {INCIDENT_FILTER_OPTIONS.map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setIncidentMapFilter(value)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                        incidentMapFilter === value
-                          ? "bg-slate-900 text-white"
-                          : "bg-white text-slate-700 ring-1 ring-slate-200"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {userLocation ? (
-                  nearbyTrafficIncidents.length > 0 ? (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">
-                        Cerca de ti
-                      </div>
-                      <div className="mt-1 space-y-1.5">
-                        {nearbyTrafficIncidents.map((item) => (
-                          <div
-                            key={`nearby-incident-${item.incident.id}`}
-                            className="flex items-center justify-between gap-3 text-xs text-amber-900"
-                          >
-                            <div className="min-w-0 truncate font-medium">
-                              {getIncidentTypeLabel(item.incident.incident_type)}
-                            </div>
-                            <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                              {formatDistance(item.distanceKm)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-slate-500">
-                      No hay incidentes activos a menos de 1 km.
-                    </div>
-                  )
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </section>
-      )}
+      ) : null}
 
       {isAdminMode ? (
         <section className="rounded-3xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
@@ -1564,7 +1440,11 @@ export function Dashboard({
             : "rounded-[2rem] border border-white/70 bg-white/75 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl"
         }`}
       >
-        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-[500] flex justify-center px-3">
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-[500] flex justify-center px-3 ${
+            isAdminMode ? "bottom-6" : "bottom-24 sm:bottom-6"
+          }`}
+        >
           <button
             type="button"
             onClick={() => setIncidentReportMode((current) => !current)}
@@ -1619,6 +1499,39 @@ export function Dashboard({
             </button>
           </div>
         ) : null}
+        {!isAdminMode && showHomeGuide ? (
+          <div className="pointer-events-none absolute inset-x-0 top-4 z-[500] flex justify-center px-3">
+            <div className="pointer-events-auto w-full max-w-sm rounded-[1.6rem] border border-white/70 bg-white/94 p-4 shadow-xl backdrop-blur">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    Guia rapida
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    Toca un punto para ver detalles.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHomeGuide(false);
+                    if (typeof window !== "undefined") {
+                      window.localStorage.setItem("surtimapa-home-guide-dismissed", "1");
+                    }
+                  }}
+                  className="rounded-full px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                >
+                  Cerrar
+                </button>
+              </div>
+              <div className="mt-3 space-y-2 text-xs text-slate-600">
+                <div>1. Busca desde la barra inferior.</div>
+                <div>2. Toca una estacion o servicio para ver informacion.</div>
+                <div>3. Usa el boton rojo para reportar incidentes.</div>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {incidentReportMode ? (
           <div className="pointer-events-none absolute inset-x-0 top-16 z-[500] flex justify-center px-3">
             <div className="rounded-xl bg-slate-900/92 px-3 py-2 text-center text-[11px] font-medium text-white shadow-lg">
@@ -1627,7 +1540,11 @@ export function Dashboard({
           </div>
         ) : null}
         {!incidentReportMode && nearbyTrafficIncident ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-16 z-[500] flex justify-center px-3">
+          <div
+            className={`pointer-events-none absolute inset-x-0 z-[500] flex justify-center px-3 ${
+              isAdminMode ? "bottom-16" : "bottom-32 sm:bottom-16"
+            }`}
+          >
             <div className="animate-pulse rounded-2xl border border-rose-300 bg-rose-50/95 px-4 py-3 text-center text-xs font-medium text-rose-800 shadow-lg backdrop-blur">
               Alerta cerca: {getIncidentTypeLabel(nearbyTrafficIncident.incident.incident_type)} a{" "}
               {formatDistance(nearbyTrafficIncident.distanceKm)}
@@ -1665,6 +1582,115 @@ export function Dashboard({
           />
         </div>
       </section>
+
+      {!isAdminMode ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-3 z-[650] flex justify-center px-3">
+          <div className="pointer-events-auto w-full max-w-md rounded-[1.8rem] border border-white/80 bg-white/92 p-3 shadow-[0_18px_48px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+            <div className="rounded-[1.2rem] bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar estacion o auxilio"
+                className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPublicMapFilter("stations")}
+                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                  publicMapFilter === "stations"
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "bg-white text-slate-700 ring-1 ring-slate-200"
+                }`}
+              >
+                Estaciones
+              </button>
+              <button
+                type="button"
+                onClick={() => setPublicMapFilter("servicio_mecanico")}
+                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                  publicMapFilter === "servicio_mecanico"
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "bg-white text-slate-700 ring-1 ring-slate-200"
+                }`}
+              >
+                Auxilio
+              </button>
+              <button
+                type="button"
+                onClick={() => setPublicMapFilter("all")}
+                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                  publicMapFilter === "all"
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "bg-white text-slate-700 ring-1 ring-slate-200"
+                }`}
+              >
+                Todo
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowIncidentFilters((current) => !current)}
+                className="ml-auto rounded-full bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-200"
+              >
+                Incidentes
+              </button>
+            </div>
+            {showIncidentFilters ? (
+              <div className="mt-3 space-y-2 rounded-[1.4rem] bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="flex flex-wrap gap-2">
+                  {INCIDENT_FILTER_OPTIONS.map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setIncidentMapFilter(value)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                        incidentMapFilter === value
+                          ? "bg-slate-900 text-white"
+                          : "bg-white text-slate-700 ring-1 ring-slate-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {userLocation ? (
+                  nearbyTrafficIncidents.length > 0 ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                        Cerca de ti
+                      </div>
+                      <div className="mt-1 space-y-1.5">
+                        {nearbyTrafficIncidents.map((item) => (
+                          <div
+                            key={`nearby-incident-${item.incident.id}`}
+                            className="flex items-center justify-between gap-3 text-xs text-amber-900"
+                          >
+                            <div className="min-w-0 truncate font-medium">
+                              {getIncidentTypeLabel(item.incident.incident_type)}
+                            </div>
+                            <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                              {formatDistance(item.distanceKm)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500">
+                      No hay incidentes activos a menos de 1 km.
+                    </div>
+                  )
+                ) : (
+                  <div className="text-xs text-slate-500">
+                    Activa ubicacion para ver incidentes cercanos.
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {!isAdminMode ? (
         <section className="rounded-[2rem] border border-white/70 bg-white/80 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
