@@ -82,7 +82,7 @@ export function ImportAudit() {
   const [mutatingAction, setMutatingAction] = useState<StationBatchAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audit, setAudit] = useState<StationImportAuditResponse | null>(null);
-  const itemRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const itemRefs = useRef<Record<number, HTMLElement | null>>({});
 
   const runAudit = async () => {
     setLoading(true);
