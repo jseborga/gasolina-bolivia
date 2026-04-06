@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { VendorRequestForm } from "@/components/vendor-request-form";
 
@@ -24,7 +25,15 @@ export default function JoinPage() {
         </p>
       </div>
 
-      <VendorRequestForm />
+      <Suspense
+        fallback={
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="text-sm text-slate-500">Cargando formulario...</div>
+          </div>
+        }
+      >
+        <VendorRequestForm />
+      </Suspense>
     </main>
   );
 }
