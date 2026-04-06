@@ -28,6 +28,13 @@ type StationsMapProps = {
   onQuickReportStation?: (
     input: ReportInput
   ) => Promise<{ ok: boolean; message: string }>;
+  onSubmitPlaceReport?: (input: {
+    notes?: string;
+    reason: "not_exists";
+    targetId: number;
+    targetName?: string;
+    targetType: "station" | "service";
+  }) => Promise<{ ok: boolean; message: string }>;
   onSubmitStationReview?: (input: {
     comment?: string;
     score: number;
@@ -420,6 +427,7 @@ function StationPopupCard({
   onAdminOpenEditor,
   onAdminToggleStationVerification,
   onQuickReportStation,
+  onSubmitPlaceReport,
   onSubmitStationReview,
   onRequestReportStation,
   station,
@@ -432,6 +440,13 @@ function StationPopupCard({
   onQuickReportStation?: (
     input: ReportInput
   ) => Promise<{ ok: boolean; message: string }>;
+  onSubmitPlaceReport?: (input: {
+    notes?: string;
+    reason: "not_exists";
+    targetId: number;
+    targetName?: string;
+    targetType: "station" | "service";
+  }) => Promise<{ ok: boolean; message: string }>;
   onSubmitStationReview?: (input: {
     comment?: string;
     score: number;
@@ -441,7 +456,32 @@ function StationPopupCard({
   station: StationWithLatest;
 }) {
   const [tab, setTab] = useState<PopupTab>("info");
+  const [placeReportSubmitting, setPlaceReportSubmitting] = useState(false);
+  const [placeReportFeedback, setPlaceReportFeedback] = useState<string | null>(null);
   const key = `station-${station.id}`;
+
+  const submitPlaceReport = async () => {
+    if (!onSubmitPlaceReport) return;
+    const confirmed = window.confirm(
+      `Denunciar "${station.name}" como inexistente o mal cargado?`
+    );
+    if (!confirmed) return;
+
+    setPlaceReportSubmitting(true);
+    setPlaceReportFeedback(null);
+
+    try {
+      const result = await onSubmitPlaceReport({
+        reason: "not_exists",
+        targetId: station.id,
+        targetName: station.name,
+        targetType: "station",
+      });
+      setPlaceReportFeedback(result.message);
+    } finally {
+      setPlaceReportSubmitting(false);
+    }
+  };
 
   return (
     <div className="w-[72vw] min-w-[210px] max-w-[250px] space-y-2 text-xs text-slate-800 sm:w-[250px]">
@@ -501,6 +541,14 @@ function StationPopupCard({
             >
               Calificar
             </button>
+            <button
+              type="button"
+              onClick={submitPlaceReport}
+              disabled={placeReportSubmitting}
+              className="rounded-lg border border-rose-300 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 disabled:opacity-60"
+            >
+              {placeReportSubmitting ? "Enviando..." : "Denunciar / No existe"}
+            </button>
             {isAdminMode ? (
               <>
                 <button
@@ -537,6 +585,11 @@ function StationPopupCard({
           >
             Abrir formulario completo
           </button>
+          {placeReportFeedback ? (
+            <div className="rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700">
+              {placeReportFeedback}
+            </div>
+          ) : null}
         </div>
       ) : tab === "report" ? (
         <StationQuickReportPopup onSubmit={onQuickReportStation} station={station} />
@@ -554,6 +607,7 @@ function ServicePopupCard({
   onAdminOpenEditor,
   onAdminToggleServicePublication,
   onAdminToggleServiceVerification,
+  onSubmitPlaceReport,
   onSubmitServiceReview,
   phoneHref,
   service,
@@ -565,6 +619,13 @@ function ServicePopupCard({
   onAdminOpenEditor?: (key: string) => void;
   onAdminToggleServicePublication?: (serviceId: number) => void;
   onAdminToggleServiceVerification?: (serviceId: number) => void;
+  onSubmitPlaceReport?: (input: {
+    notes?: string;
+    reason: "not_exists";
+    targetId: number;
+    targetName?: string;
+    targetType: "station" | "service";
+  }) => Promise<{ ok: boolean; message: string }>;
   onSubmitServiceReview?: (input: {
     comment?: string;
     score: number;
@@ -575,7 +636,32 @@ function ServicePopupCard({
   whatsappHref: string;
 }) {
   const [tab, setTab] = useState<PopupTab>("info");
+  const [placeReportSubmitting, setPlaceReportSubmitting] = useState(false);
+  const [placeReportFeedback, setPlaceReportFeedback] = useState<string | null>(null);
   const key = `service-${service.id}`;
+
+  const submitPlaceReport = async () => {
+    if (!onSubmitPlaceReport) return;
+    const confirmed = window.confirm(
+      `Denunciar "${service.name}" como inexistente o mal cargado?`
+    );
+    if (!confirmed) return;
+
+    setPlaceReportSubmitting(true);
+    setPlaceReportFeedback(null);
+
+    try {
+      const result = await onSubmitPlaceReport({
+        reason: "not_exists",
+        targetId: service.id,
+        targetName: service.name,
+        targetType: "service",
+      });
+      setPlaceReportFeedback(result.message);
+    } finally {
+      setPlaceReportSubmitting(false);
+    }
+  };
 
   return (
     <div className="w-[72vw] min-w-[210px] max-w-[250px] space-y-2 text-xs text-slate-800 sm:w-[250px]">
@@ -673,6 +759,14 @@ function ServicePopupCard({
             >
               Calificar
             </button>
+            <button
+              type="button"
+              onClick={submitPlaceReport}
+              disabled={placeReportSubmitting}
+              className="rounded-lg border border-rose-300 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 disabled:opacity-60"
+            >
+              {placeReportSubmitting ? "Enviando..." : "Denunciar / No existe"}
+            </button>
             {isAdminMode ? (
               <>
                 <button
@@ -710,6 +804,11 @@ function ServicePopupCard({
               </>
             ) : null}
           </div>
+          {placeReportFeedback ? (
+            <div className="rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700">
+              {placeReportFeedback}
+            </div>
+          ) : null}
         </div>
       ) : (
         <ServiceReviewPopup onSubmit={onSubmitServiceReview} serviceId={service.id} />
@@ -863,6 +962,7 @@ export default function StationsMap({
   onAdminToggleServiceVerification,
   onAdminToggleStationVerification,
   onQuickReportStation,
+  onSubmitPlaceReport,
   onSubmitStationReview,
   onSubmitServiceReview,
   services,
@@ -930,6 +1030,7 @@ export default function StationsMap({
                   onAdminOpenEditor={onAdminOpenEditor}
                   onAdminToggleServicePublication={onAdminToggleServicePublication}
                   onAdminToggleServiceVerification={onAdminToggleServiceVerification}
+                  onSubmitPlaceReport={onSubmitPlaceReport}
                   onSubmitServiceReview={onSubmitServiceReview}
                   phoneHref={phoneHref}
                   service={service}
@@ -968,6 +1069,7 @@ export default function StationsMap({
                   onAdminOpenEditor={onAdminOpenEditor}
                   onAdminToggleStationVerification={onAdminToggleStationVerification}
                   onQuickReportStation={onQuickReportStation}
+                  onSubmitPlaceReport={onSubmitPlaceReport}
                   onSubmitStationReview={onSubmitStationReview}
                   onRequestReportStation={onRequestReportStation}
                   station={station}

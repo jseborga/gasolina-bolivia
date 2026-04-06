@@ -119,3 +119,24 @@ export type AppEvent = {
   visitor_id: string | null;
   metadata: Record<string, unknown> | null;
 };
+
+export type PlaceReportReason =
+  | "not_exists"
+  | "wrong_location"
+  | "duplicate"
+  | "closed"
+  | "other";
+
+export type PlaceReport = {
+  id: number;
+  target_type: "station" | "service";
+  target_id: number;
+  target_name: string | null;
+  reason: PlaceReportReason;
+  notes: string | null;
+  visitor_id: string | null;
+  ip_address: string | null;
+  latitude_bucket: number | null;
+  longitude_bucket: number | null;
+  created_at: string;
+};

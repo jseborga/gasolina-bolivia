@@ -82,6 +82,8 @@ type SearchResult =
       service: SupportServiceWithDistance;
     };
 
+type PublicMapFilter = "stations" | "servicio_mecanico" | "all";
+
 function normalizeSearchValue(value: string) {
   return value
     .toLowerCase()
@@ -244,6 +246,7 @@ export function Dashboard({
   const [locationState, setLocationState] = useState<
     "idle" | "loading" | "granted" | "denied" | "error"
   >("idle");
+  const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
   const [didAutoPickNearest, setDidAutoPickNearest] = useState(false);
   const [requestedInitialLocation, setRequestedInitialLocation] = useState(false);
   const [stationAdminDraft, setStationAdminDraft] = useState<StationMapAdminDraft | null>(null);
@@ -327,60 +330,75 @@ export function Dashboard({
   const normalizedQuery = normalizeSearchValue(search);
 
   const results = useMemo<SearchResult[]>(() => {
-    const stationResults: SearchResult[] = stationsWithDistance
-      .map((station) => {
-        const searchText = normalizeSearchValue(
-          [
-            station.name,
-            station.zone,
-            station.city,
-            station.address,
-            station.latestReport?.comment,
-            station.latestReport?.fuel_type,
-            station.latestReport?.availability_status,
-          ]
-            .filter(Boolean)
-            .join(" ")
-        );
+    const showStations = isAdminMode || publicMapFilter === "stations" || publicMapFilter === "all";
+    const showServices =
+      isAdminMode || publicMapFilter === "servicio_mecanico" || publicMapFilter === "all";
 
-        const searchRank = getMatchRank(searchText, normalizedQuery, station.name);
-        return {
-          key: `station-${station.id}`,
-          kind: "station" as const,
-          distanceKm: station.distanceKm ?? null,
-          searchRank,
-          station,
-        };
-      })
-      .filter((item) => !normalizedQuery || item.searchRank >= 0);
+    const stationResults: SearchResult[] = showStations
+      ? stationsWithDistance
+          .map((station) => {
+            const searchText = normalizeSearchValue(
+              [
+                station.name,
+                station.zone,
+                station.city,
+                station.address,
+                station.latestReport?.comment,
+                station.latestReport?.fuel_type,
+                station.latestReport?.availability_status,
+              ]
+                .filter(Boolean)
+                .join(" ")
+            );
 
-    const serviceResults: SearchResult[] = servicesWithDistance
-      .map((service) => {
-        const searchText = normalizeSearchValue(
-          [
-            service.name,
-            service.zone,
-            service.city,
-            service.address,
-            service.description,
-            service.price_text,
-            service.meeting_point,
-            getSupportServiceLabel(service.category),
-          ]
-            .filter(Boolean)
-            .join(" ")
-        );
+            const searchRank = getMatchRank(searchText, normalizedQuery, station.name);
+            return {
+              key: `station-${station.id}`,
+              kind: "station" as const,
+              distanceKm: station.distanceKm ?? null,
+              searchRank,
+              station,
+            };
+          })
+          .filter((item) => !normalizedQuery || item.searchRank >= 0)
+      : [];
 
-        const searchRank = getMatchRank(searchText, normalizedQuery, service.name);
-        return {
-          key: `service-${service.id}`,
-          kind: "service" as const,
-          distanceKm: service.distanceKm ?? null,
-          searchRank,
-          service,
-        };
-      })
-      .filter((item) => !normalizedQuery || item.searchRank >= 0);
+    const serviceResults: SearchResult[] = showServices
+      ? servicesWithDistance
+          .filter((service) =>
+            isAdminMode
+              ? true
+              : publicMapFilter === "servicio_mecanico"
+                ? service.category === "servicio_mecanico"
+                : true
+          )
+          .map((service) => {
+            const searchText = normalizeSearchValue(
+              [
+                service.name,
+                service.zone,
+                service.city,
+                service.address,
+                service.description,
+                service.price_text,
+                service.meeting_point,
+                getSupportServiceLabel(service.category),
+              ]
+                .filter(Boolean)
+                .join(" ")
+            );
+
+            const searchRank = getMatchRank(searchText, normalizedQuery, service.name);
+            return {
+              key: `service-${service.id}`,
+              kind: "service" as const,
+              distanceKm: service.distanceKm ?? null,
+              searchRank,
+              service,
+            };
+          })
+          .filter((item) => !normalizedQuery || item.searchRank >= 0)
+      : [];
 
     return [...stationResults, ...serviceResults].sort((a, b) => {
       if (normalizedQuery) {
@@ -395,7 +413,7 @@ export function Dashboard({
       const bName = b.kind === "station" ? b.station.name : b.service.name;
       return aName.localeCompare(bName, "es");
     });
-  }, [normalizedQuery, servicesWithDistance, stationsWithDistance]);
+  }, [isAdminMode, normalizedQuery, publicMapFilter, servicesWithDistance, stationsWithDistance]);
 
   useEffect(() => {
     const hasSelected = selectedKey
@@ -902,6 +920,44 @@ export function Dashboard({
     }
   };
 
+  const handleSubmitPlaceReport = async (input: {
+    notes?: string;
+    reason: "not_exists";
+    targetId: number;
+    targetName?: string;
+    targetType: "station" | "service";
+  }) => {
+    try {
+      const visitorId = ensureVisitorId();
+      const res = await fetch("/api/place-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          latitude: userLocation?.lat ?? null,
+          longitude: userLocation?.lng ?? null,
+          notes: input.notes,
+          reason: input.reason,
+          targetId: input.targetId,
+          targetName: input.targetName,
+          targetType: input.targetType,
+          visitorId,
+        }),
+      });
+
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "No se pudo enviar la denuncia.");
+      }
+
+      return { ok: true, message: "Denuncia enviada para revision." };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "No se pudo enviar la denuncia.",
+      };
+    }
+  };
+
   const handleSubmitServiceReview = async (input: {
     comment?: string;
     score: number;
@@ -1001,12 +1057,49 @@ export function Dashboard({
         </section>
       ) : (
         <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar surtidor, taller, grua, auxilio o aditivos"
-            className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
-          />
+          <div className="space-y-3">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar surtidor, taller, grua, auxilio o aditivos"
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPublicMapFilter("stations")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  publicMapFilter === "stations"
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-300 bg-white text-slate-700"
+                }`}
+              >
+                EESS
+              </button>
+              <button
+                type="button"
+                onClick={() => setPublicMapFilter("servicio_mecanico")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  publicMapFilter === "servicio_mecanico"
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-300 bg-white text-slate-700"
+                }`}
+              >
+                Auxilio mecanico
+              </button>
+              <button
+                type="button"
+                onClick={() => setPublicMapFilter("all")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  publicMapFilter === "all"
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-300 bg-white text-slate-700"
+                }`}
+              >
+                Ver todo
+              </button>
+            </div>
+          </div>
         </section>
       )}
 
@@ -1069,12 +1162,28 @@ export function Dashboard({
         </section>
       ) : null}
 
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        {!isAdminMode ? (
+          <div className="pointer-events-none absolute right-3 top-3 z-[500]">
+            <button
+              type="button"
+              onClick={() => handleUseMyLocation()}
+              className="pointer-events-auto rounded-xl bg-white/95 px-3 py-2 text-xs font-medium text-slate-800 shadow-sm ring-1 ring-slate-200 backdrop-blur hover:bg-white"
+            >
+              {locationState === "loading"
+                ? "Activando GPS..."
+                : locationState === "granted"
+                  ? "Ir a mi ubicacion"
+                  : "Activar GPS"}
+            </button>
+          </div>
+        ) : null}
         <div className={isAdminMode ? "h-[58vh] min-h-[420px] sm:h-[70vh]" : "h-[72vh] min-h-[480px]"}>
           <StationsMap
             adminActionKey={adminActionKey}
             isAdminMode={isAdminMode}
             onQuickReportStation={handleQuickReport}
+            onSubmitPlaceReport={handleSubmitPlaceReport}
             onSubmitStationReview={handleSubmitStationReview}
             onSubmitServiceReview={handleSubmitServiceReview}
             onAdminDeleteService={handleAdminDeleteService}
