@@ -115,6 +115,17 @@ function normalizeSearchValue(value: string) {
     .trim();
 }
 
+function toLocationAnalyticsMetadata(input: { lat: number; lng: number; accuracy?: number | null }) {
+  return {
+    accuracy_meters:
+      typeof input.accuracy === "number" && Number.isFinite(input.accuracy)
+        ? Math.round(input.accuracy)
+        : null,
+    lat: Number(input.lat.toFixed(4)),
+    lng: Number(input.lng.toFixed(4)),
+  };
+}
+
 function formatDistance(distanceKm?: number | null) {
   if (distanceKm == null) return "Sin distancia";
   if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m`;
@@ -292,6 +303,7 @@ export function Dashboard({
   const [locationState, setLocationState] = useState<
     "idle" | "loading" | "granted" | "denied" | "error"
   >("idle");
+  const [hasRequestedLocation, setHasRequestedLocation] = useState(false);
   const [locationFocusKey, setLocationFocusKey] = useState(0);
   const [showHomeGuide, setShowHomeGuide] = useState(false);
   const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
@@ -578,7 +590,7 @@ export function Dashboard({
   const selectedIncidentFilterLabel =
     INCIDENT_FILTER_OPTIONS.find(([value]) => value === incidentMapFilter)?.[1] ?? "Todos";
 
-  const handleUseMyLocation = (options?: { silent?: boolean }) => {
+  const handleUseMyLocation = (options?: { silent?: boolean; source?: "auto" | "button" }) => {
     if (isAdminMode) {
       return;
     }
@@ -592,15 +604,38 @@ export function Dashboard({
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const nextLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
         setUserLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         });
         setLocationState("granted");
         setLocationFocusKey((current) => current + 1);
+        trackAppEvent({
+          eventType: "location_granted",
+          targetType: "system",
+          metadata: {
+            source: options?.source ?? "button",
+            ...toLocationAnalyticsMetadata({
+              accuracy: position.coords.accuracy,
+              lat: nextLocation.lat,
+              lng: nextLocation.lng,
+            }),
+          },
+        });
       },
       () => {
         setLocationState(options?.silent ? "idle" : "denied");
+        trackAppEvent({
+          eventType: "location_denied",
+          targetType: "system",
+          metadata: {
+            source: options?.source ?? "button",
+          },
+        });
       },
       {
         enableHighAccuracy: true,
@@ -609,6 +644,15 @@ export function Dashboard({
       }
     );
   };
+
+  useEffect(() => {
+    if (isAdminMode || hasRequestedLocation || typeof navigator === "undefined") {
+      return;
+    }
+
+    setHasRequestedLocation(true);
+    handleUseMyLocation({ source: "auto" });
+  }, [hasRequestedLocation, isAdminMode]);
 
   const handleSelectResult = (
     key: string,
@@ -1462,7 +1506,7 @@ export function Dashboard({
           <div className="pointer-events-none absolute right-3 top-3 z-[500]">
             <button
               type="button"
-              onClick={() => handleUseMyLocation()}
+              onClick={() => handleUseMyLocation({ source: "button" })}
               aria-label={
                 locationState === "granted" ? "Ir a mi ubicacion" : "Activar ubicacion"
               }
@@ -1500,8 +1544,29 @@ export function Dashboard({
             </button>
           </div>
         ) : null}
-        {!isAdminMode && showHomeGuide ? (
+        {!isAdminMode && locationState !== "granted" ? (
           <div className="pointer-events-none absolute inset-x-0 top-4 z-[500] flex justify-center px-3">
+            <div className="pointer-events-auto w-full max-w-sm rounded-[1.5rem] border border-amber-200 bg-white/96 p-4 shadow-xl backdrop-blur">
+              <div className="text-sm font-semibold text-slate-900">
+                Activa tu ubicacion para centrar el mapa y ver lo que esta cerca.
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Sin GPS no se puede mostrar tu zona actual ni priorizar incidentes cercanos.
+              </div>
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => handleUseMyLocation({ source: "button" })}
+                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  {locationState === "loading" ? "Activando GPS..." : "Activar GPS"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {!isAdminMode && showHomeGuide ? (
+          <div className="pointer-events-none absolute inset-x-0 top-28 z-[500] flex justify-center px-3">
             <div className="pointer-events-auto w-full max-w-sm rounded-[1.6rem] border border-white/70 bg-white/94 p-4 shadow-xl backdrop-blur">
               <div className="flex items-start justify-between gap-3">
                 <div>
