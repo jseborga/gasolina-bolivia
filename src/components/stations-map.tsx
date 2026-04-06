@@ -645,13 +645,6 @@ function IncidentDraftPopup({
         >
           {submitting ? "Enviando..." : "Publicar incidente"}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700"
-        >
-          Cancelar
-        </button>
       </div>
 
       {feedback ? (
@@ -1536,9 +1529,9 @@ export default function StationsMap({
             autoClose={false}
             closeOnClick={false}
             closeButton={false}
-            autoPanPadding={[18, 120]}
+            autoPanPadding={[32, 180]}
             maxWidth={320}
-            offset={[0, -18]}
+            offset={[0, -32]}
           >
             <IncidentDraftPopup
               latitude={draftIncidentPoint.lat}

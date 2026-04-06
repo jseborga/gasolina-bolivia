@@ -1686,7 +1686,7 @@ export function Dashboard({
                 : "bg-rose-600 text-white ring-rose-300 hover:bg-rose-500"
             }`}
           >
-            {incidentReportMode ? "Cancelar incidente" : "Reportar incidente"}
+            {incidentReportMode ? "Salir del modo incidente" : "Reportar incidente"}
           </button>
         </div>
         {!isAdminMode ? (
