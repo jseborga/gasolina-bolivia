@@ -85,6 +85,16 @@ type SearchResult =
     };
 
 type PublicMapFilter = "stations" | "servicio_mecanico" | "all";
+type IncidentMapFilter =
+  | "all"
+  | "nearby"
+  | "none"
+  | "control_vial"
+  | "corte_via"
+  | "marcha"
+  | "accidente"
+  | "derrumbe"
+  | "otro";
 
 function normalizeSearchValue(value: string) {
   return value
@@ -98,6 +108,26 @@ function formatDistance(distanceKm?: number | null) {
   if (distanceKm == null) return "Sin distancia";
   if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m`;
   return `${distanceKm.toFixed(1)} km`;
+}
+
+function getIncidentTypeLabel(
+  type: "control_vial" | "corte_via" | "marcha" | "accidente" | "derrumbe" | "otro"
+) {
+  switch (type) {
+    case "control_vial":
+      return "Control";
+    case "corte_via":
+      return "Corte";
+    case "marcha":
+      return "Marcha";
+    case "accidente":
+      return "Accidente";
+    case "derrumbe":
+      return "Derrumbe";
+    case "otro":
+    default:
+      return "Otro";
+  }
 }
 
 function getStatusPillClass(status?: string | null) {
@@ -252,6 +282,7 @@ export function Dashboard({
     "idle" | "loading" | "granted" | "denied" | "error"
   >("idle");
   const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
+  const [incidentMapFilter, setIncidentMapFilter] = useState<IncidentMapFilter>("all");
   const [incidentReportMode, setIncidentReportMode] = useState(false);
   const [didAutoPickNearest, setDidAutoPickNearest] = useState(false);
   const [requestedInitialLocation, setRequestedInitialLocation] = useState(false);
@@ -492,6 +523,42 @@ export function Dashboard({
     () => results.filter((item): item is Extract<SearchResult, { kind: "service" }> => item.kind === "service").map((item) => item.service),
     [results]
   );
+
+  const nearbyTrafficIncidents = useMemo(() => {
+    if (isAdminMode || !userLocation || trafficIncidents.length === 0) {
+      return [];
+    }
+
+    return trafficIncidents
+      .map((incident) => ({
+        distanceKm: haversineKm(
+          userLocation.lat,
+          userLocation.lng,
+          incident.latitude,
+          incident.longitude
+        ),
+        incident,
+      }))
+      .filter((item) => item.distanceKm <= 1)
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, 3);
+  }, [isAdminMode, trafficIncidents, userLocation]);
+
+  const visibleTrafficIncidents = useMemo(
+    () =>
+      trafficIncidents.filter((incident) =>
+        incidentMapFilter === "all"
+          ? true
+          : incidentMapFilter === "nearby"
+            ? nearbyTrafficIncidents.some((item) => item.incident.id === incident.id)
+            : incidentMapFilter === "none"
+              ? false
+              : incident.incident_type === incidentMapFilter
+      ),
+    [incidentMapFilter, nearbyTrafficIncidents, trafficIncidents]
+  );
+
+  const nearbyTrafficIncident = nearbyTrafficIncidents[0] ?? null;
 
   const handleUseMyLocation = (options?: { silent?: boolean }) => {
     if (isAdminMode) {
@@ -1324,6 +1391,68 @@ export function Dashboard({
         </section>
       ) : null}
 
+      <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="space-y-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+            Incidentes en mapa
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "Todos"],
+                ["nearby", "Cerca"],
+                ["control_vial", "Control"],
+                ["corte_via", "Corte"],
+                ["marcha", "Marcha"],
+                ["accidente", "Accidente"],
+                ["none", "Ocultar"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setIncidentMapFilter(value)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  incidentMapFilter === value
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-300 bg-white text-slate-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {!isAdminMode && userLocation ? (
+            nearbyTrafficIncidents.length > 0 ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                  Cerca de ti
+                </div>
+                <div className="mt-1 space-y-1.5">
+                  {nearbyTrafficIncidents.map((item) => (
+                    <div
+                      key={`nearby-incident-${item.incident.id}`}
+                      className="flex items-center justify-between gap-3 text-xs text-amber-900"
+                    >
+                      <div className="min-w-0 truncate font-medium">
+                        {getIncidentTypeLabel(item.incident.incident_type)}
+                      </div>
+                      <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                        {formatDistance(item.distanceKm)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-500">
+                No hay incidentes activos a menos de 1 km.
+              </div>
+            )
+          ) : null}
+        </div>
+      </section>
+
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[500] flex justify-center px-3">
           <button
@@ -1360,12 +1489,21 @@ export function Dashboard({
             </div>
           </div>
         ) : null}
+        {!incidentReportMode && nearbyTrafficIncident ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-16 z-[500] flex justify-center px-3">
+            <div className="animate-pulse rounded-2xl border border-rose-300 bg-rose-50/95 px-4 py-3 text-center text-xs font-medium text-rose-800 shadow-lg backdrop-blur">
+              Alerta cerca: {getIncidentTypeLabel(nearbyTrafficIncident.incident.incident_type)} a{" "}
+              {formatDistance(nearbyTrafficIncident.distanceKm)}
+            </div>
+          </div>
+        ) : null}
         <div className={isAdminMode ? "h-[58vh] min-h-[420px] sm:h-[70vh]" : "h-[72vh] min-h-[480px]"}>
           <StationsMap
             adminActionKey={adminActionKey}
             incidentReportMode={incidentReportMode}
-            incidents={trafficIncidents}
+            incidents={visibleTrafficIncidents}
             isAdminMode={isAdminMode}
+            nearbyIncidentId={nearbyTrafficIncident?.incident.id ?? null}
             onCancelIncidentReport={() => setIncidentReportMode(false)}
             onConfirmTrafficIncident={handleConfirmTrafficIncident}
             onCreateTrafficIncident={handleCreateTrafficIncident}

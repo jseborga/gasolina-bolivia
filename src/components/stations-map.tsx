@@ -33,6 +33,7 @@ type StationsMapProps = {
   incidentReportMode?: boolean;
   incidents?: TrafficIncident[];
   isAdminMode?: boolean;
+  nearbyIncidentId?: number | null;
   onCancelIncidentReport?: () => void;
   onAdminDeleteService?: (serviceId: number) => void;
   onAdminDeleteStation?: (stationId: number) => void;
@@ -114,6 +115,24 @@ function getTrafficIncidentLabel(type: TrafficIncidentType) {
 
 function getTrafficIncidentColor(type: TrafficIncidentType) {
   return INCIDENT_COLORS[type] ?? "#0f172a";
+}
+
+function getTrafficIncidentMarkerMeta(type: TrafficIncidentType) {
+  switch (type) {
+    case "control_vial":
+      return { color: "#7c3aed", symbol: "&#128110;" };
+    case "corte_via":
+      return { color: "#f97316", symbol: "&#9940;" };
+    case "marcha":
+      return { color: "#e11d48", symbol: "&#128101;" };
+    case "accidente":
+      return { color: "#dc2626", symbol: "&#9888;" };
+    case "derrumbe":
+      return { color: "#92400e", symbol: "&#9968;" };
+    case "otro":
+    default:
+      return { color: "#0f172a", symbol: "&#128205;" };
+  }
 }
 
 const DEFAULT_INCIDENT_DURATION_BY_TYPE: Record<TrafficIncidentType, number> = {
@@ -650,12 +669,14 @@ function TrafficIncidentPopupCard({
   incident,
   isAdminMode,
   isBusy,
+  isNearby,
   onConfirm,
   onResolve,
 }: {
   incident: TrafficIncident;
   isAdminMode: boolean;
   isBusy: boolean;
+  isNearby: boolean;
   onConfirm?: (
     incidentId: number,
     action: TrafficIncidentVote
@@ -710,6 +731,11 @@ function TrafficIncidentPopupCard({
       <div className="text-sm font-semibold leading-tight text-slate-900">
         {getTrafficIncidentLabel(incident.incident_type)}
       </div>
+      {isNearby ? (
+        <div className="rounded-full bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700">
+          Cerca de tu ubicacion
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-800">
           {confirmationCount} confirma{confirmationCount === 1 ? "" : "n"}
@@ -1191,17 +1217,23 @@ function createStationMarkerIcon(color: string, isSelected: boolean, isActive: b
     className: "",
     html: `
       <div style="
-        width:${isSelected ? 22 : 18}px;
-        height:${isSelected ? 22 : 18}px;
+        width:${isSelected ? 28 : 24}px;
+        height:${isSelected ? 28 : 24}px;
         border-radius:9999px;
         background:${isActive ? color : "#94a3b8"};
-        border:3px solid white;
+        border:2px solid white;
         box-shadow:0 0 0 ${isSelected ? 2 : 1}px rgba(15,23,42,0.18);
         opacity:${isActive ? 1 : 0.68};
-      "></div>
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        color:white;
+        font-size:${isSelected ? 15 : 13}px;
+        font-weight:700;
+      ">&#9981;</div>
     `,
-    iconSize: [isSelected ? 22 : 18, isSelected ? 22 : 18],
-    iconAnchor: [isSelected ? 11 : 9, isSelected ? 11 : 9],
+    iconSize: [isSelected ? 28 : 24, isSelected ? 28 : 24],
+    iconAnchor: [isSelected ? 14 : 12, isSelected ? 14 : 12],
   });
 }
 
@@ -1233,6 +1265,35 @@ function createServiceMarkerIcon(
     `,
     iconSize: [isSelected ? 28 : 24, isSelected ? 28 : 24],
     iconAnchor: [isSelected ? 14 : 12, isSelected ? 14 : 12],
+  });
+}
+
+function createTrafficIncidentMarkerIcon(
+  type: TrafficIncidentType,
+  isNearby: boolean
+) {
+  const { color, symbol } = getTrafficIncidentMarkerMeta(type);
+
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="
+        width:${isNearby ? 30 : 26}px;
+        height:${isNearby ? 30 : 26}px;
+        border-radius:9999px;
+        background:${color};
+        border:2px solid white;
+        box-shadow:0 0 0 ${isNearby ? 4 : 2}px ${isNearby ? "rgba(248,113,113,0.35)" : "rgba(15,23,42,0.18)"};
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        color:white;
+        font-size:${isNearby ? 16 : 14}px;
+        font-weight:700;
+      ">${symbol}</div>
+    `,
+    iconSize: [isNearby ? 30 : 26, isNearby ? 30 : 26],
+    iconAnchor: [isNearby ? 15 : 13, isNearby ? 15 : 13],
   });
 }
 
@@ -1320,6 +1381,7 @@ export default function StationsMap({
   incidentReportMode = false,
   incidents = [],
   isAdminMode = false,
+  nearbyIncidentId = null,
   onCancelIncidentReport,
   onAdminDeleteService,
   onAdminDeleteStation,
@@ -1396,29 +1458,35 @@ export default function StationsMap({
         .map((incident) => {
           const color = getTrafficIncidentColor(incident.incident_type);
           const isBusy = adminActionKey === `incident-${incident.id}`;
+          const isNearby = nearbyIncidentId === incident.id;
 
           return (
             <Fragment key={`incident-${incident.id}`}>
               <Circle
                 center={[incident.latitude, incident.longitude]}
                 radius={incident.radius_meters}
-                pathOptions={{ color, fillColor: color, fillOpacity: 0.08, weight: 1 }}
+                pathOptions={{
+                  color,
+                  fillColor: color,
+                  fillOpacity: isNearby ? 0.14 : 0.08,
+                  weight: isNearby ? 2 : 1,
+                }}
               />
-              <CircleMarker
+              <Marker
                 center={[incident.latitude, incident.longitude]}
-                radius={9}
-                pathOptions={{ color, fillColor: color, fillOpacity: 0.95, weight: 2 }}
+                icon={createTrafficIncidentMarkerIcon(incident.incident_type, isNearby)}
               >
                 <Popup keepInView maxWidth={280}>
                   <TrafficIncidentPopupCard
                     incident={incident}
                     isAdminMode={isAdminMode}
                     isBusy={isBusy}
+                    isNearby={isNearby}
                     onConfirm={onConfirmTrafficIncident}
                     onResolve={onResolveTrafficIncident}
                   />
                 </Popup>
-              </CircleMarker>
+              </Marker>
             </Fragment>
           );
         })}
