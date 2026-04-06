@@ -16,6 +16,14 @@ import type {
 } from "@/lib/types";
 
 type StationsMapProps = {
+  adminActionKey?: string | null;
+  isAdminMode?: boolean;
+  onAdminDeleteService?: (serviceId: number) => void;
+  onAdminDeleteStation?: (stationId: number) => void;
+  onAdminOpenEditor?: (key: string) => void;
+  onAdminToggleServicePublication?: (serviceId: number) => void;
+  onAdminToggleServiceVerification?: (serviceId: number) => void;
+  onAdminToggleStationVerification?: (stationId: number) => void;
   services: SupportServiceWithDistance[];
   stations: (StationWithLatest & { distanceKm?: number | null })[];
   selectedKey: string | null;
@@ -50,7 +58,7 @@ function getServiceMarkerMeta(category: SupportServiceCategory) {
   }
 }
 
-function createStationMarkerIcon(color: string, isSelected: boolean) {
+function createStationMarkerIcon(color: string, isSelected: boolean, isActive: boolean) {
   return L.divIcon({
     className: "",
     html: `
@@ -58,9 +66,10 @@ function createStationMarkerIcon(color: string, isSelected: boolean) {
         width:${isSelected ? 22 : 18}px;
         height:${isSelected ? 22 : 18}px;
         border-radius:9999px;
-        background:${color};
+        background:${isActive ? color : "#94a3b8"};
         border:3px solid white;
         box-shadow:0 0 0 ${isSelected ? 2 : 1}px rgba(15,23,42,0.18);
+        opacity:${isActive ? 1 : 0.68};
       "></div>
     `,
     iconSize: [isSelected ? 22 : 18, isSelected ? 22 : 18],
@@ -68,7 +77,11 @@ function createStationMarkerIcon(color: string, isSelected: boolean) {
   });
 }
 
-function createServiceMarkerIcon(category: SupportServiceCategory, isSelected: boolean) {
+function createServiceMarkerIcon(
+  category: SupportServiceCategory,
+  isSelected: boolean,
+  isVisible: boolean
+) {
   const { color, label } = getServiceMarkerMeta(category);
 
   return L.divIcon({
@@ -87,6 +100,7 @@ function createServiceMarkerIcon(category: SupportServiceCategory, isSelected: b
         color:white;
         font-size:${isSelected ? 13 : 12}px;
         font-weight:700;
+        opacity:${isVisible ? 1 : 0.68};
       ">${label}</div>
     `,
     iconSize: [isSelected ? 28 : 24, isSelected ? 28 : 24],
@@ -130,6 +144,14 @@ function MapFocusController({
 }
 
 export default function StationsMap({
+  adminActionKey = null,
+  isAdminMode = false,
+  onAdminDeleteService,
+  onAdminDeleteStation,
+  onAdminOpenEditor,
+  onAdminToggleServicePublication,
+  onAdminToggleServiceVerification,
+  onAdminToggleStationVerification,
   services,
   stations,
   selectedKey,
@@ -175,12 +197,14 @@ export default function StationsMap({
           const phoneHref = buildTelHref(service.phone ?? service.whatsapp_number);
           const whatsappHref = buildWhatsAppHref(service.whatsapp_number ?? service.phone);
           const isSelected = selectedKey === key;
+          const isBusy = adminActionKey === key;
+          const isVisible = service.is_active && (service.is_published ?? true);
 
           return (
             <Marker
               key={key}
               position={[service.latitude as number, service.longitude as number]}
-              icon={createServiceMarkerIcon(service.category, isSelected)}
+              icon={createServiceMarkerIcon(service.category, isSelected, isVisible)}
               eventHandlers={{
                 click: () => onSelectKey(key),
               }}
@@ -197,6 +221,28 @@ export default function StationsMap({
                   {service.description && <div>{service.description}</div>}
                   {(service.phone || service.whatsapp_number) && (
                     <div>Contacto: {formatContactLabel(service.phone ?? service.whatsapp_number)}</div>
+                  )}
+                  {isAdminMode && (
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span
+                        className={`rounded-full px-2 py-1 ${
+                          service.is_verified
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {service.is_verified ? "Validado" : "Pendiente"}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-1 ${
+                          service.is_published
+                            ? "bg-sky-100 text-sky-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {service.is_published ? "Publicado" : "Borrador"}
+                      </span>
+                    </div>
                   )}
                   <div className="flex flex-wrap gap-2 pt-1">
                     {whatsappHref && (
@@ -241,6 +287,42 @@ export default function StationsMap({
                         Llamar
                       </a>
                     )}
+                    {isAdminMode ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onAdminOpenEditor?.(key)}
+                          disabled={isBusy}
+                          className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-700 disabled:opacity-60"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onAdminToggleServiceVerification?.(service.id)}
+                          disabled={isBusy}
+                          className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 disabled:opacity-60"
+                        >
+                          {service.is_verified ? "Quitar valid." : "Validar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onAdminToggleServicePublication?.(service.id)}
+                          disabled={isBusy}
+                          className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 disabled:opacity-60"
+                        >
+                          {service.is_published ? "Borrador" : "Publicar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onAdminDeleteService?.(service.id)}
+                          disabled={isBusy}
+                          className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-60"
+                        >
+                          Eliminar
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </Popup>
@@ -257,12 +339,13 @@ export default function StationsMap({
           const key = `station-${station.id}`;
           const isSelected = selectedKey === key;
           const color = getStationMarkerColor(station.latestReport?.availability_status);
+          const isBusy = adminActionKey === key;
 
           return (
             <Marker
               key={key}
               position={[station.latitude as number, station.longitude as number]}
-              icon={createStationMarkerIcon(color, isSelected)}
+              icon={createStationMarkerIcon(color, isSelected, station.is_active ?? true)}
               eventHandlers={{
                 click: () => onSelectKey(key),
               }}
@@ -275,19 +358,71 @@ export default function StationsMap({
                     score={station.reputation_score}
                     count={station.reputation_votes}
                   />
+                  {isAdminMode && (
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span
+                        className={`rounded-full px-2 py-1 ${
+                          station.is_verified
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {station.is_verified ? "Validada" : "Pendiente"}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-1 ${
+                          station.is_active
+                            ? "bg-slate-100 text-slate-700"
+                            : "bg-rose-100 text-rose-700"
+                        }`}
+                      >
+                        {station.is_active ? "Activa" : "Inactiva"}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     Estado: {formatAvailability(station.latestReport?.availability_status)}
                   </div>
                   <div>Combustible: {formatFuelType(station.latestReport?.fuel_type)}</div>
                   <div>Fila: {formatQueue(station.latestReport?.queue_status)}</div>
                   <div>{station.address || "Sin direccion"}</div>
-                  <button
-                    type="button"
-                    onClick={() => onRequestReportStation(station.id, "popup")}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
-                  >
-                    Informar estado
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onRequestReportStation(station.id, "popup")}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                    >
+                      Informar estado
+                    </button>
+                    {isAdminMode ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onAdminOpenEditor?.(key)}
+                          disabled={isBusy}
+                          className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-700 disabled:opacity-60"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onAdminToggleStationVerification?.(station.id)}
+                          disabled={isBusy}
+                          className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 disabled:opacity-60"
+                        >
+                          {station.is_verified ? "Quitar valid." : "Validar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onAdminDeleteStation?.(station.id)}
+                          disabled={isBusy}
+                          className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-60"
+                        >
+                          Eliminar
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </Popup>
             </Marker>

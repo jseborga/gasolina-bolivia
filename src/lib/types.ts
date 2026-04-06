@@ -22,7 +22,15 @@ export type Station = {
   longitude: number | null;
   reputation_score?: number | null;
   reputation_votes?: number | null;
+  fuel_especial?: boolean;
+  fuel_premium?: boolean;
+  fuel_diesel?: boolean;
+  fuel_gnv?: boolean;
   is_active?: boolean;
+  is_verified?: boolean;
+  source_url?: string | null;
+  notes?: string | null;
+  license_code?: string | null;
 };
 
 export type Report = {
