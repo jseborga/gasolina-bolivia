@@ -9,7 +9,7 @@ export type AppEventInput = {
 
 const VISITOR_STORAGE_KEY = "surti_mapa_visitor_id";
 
-function ensureVisitorId() {
+export function ensureVisitorId() {
   if (typeof window === "undefined") return "";
 
   const current = window.localStorage.getItem(VISITOR_STORAGE_KEY);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -10,6 +10,7 @@ import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/conta
 import { formatAvailability, formatFuelType, formatQueue } from "@/lib/reporting";
 import { getSupportServiceLabel } from "@/lib/services";
 import type {
+  ReportInput,
   StationWithLatest,
   SupportServiceCategory,
   SupportServiceWithDistance,
@@ -24,6 +25,14 @@ type StationsMapProps = {
   onAdminToggleServicePublication?: (serviceId: number) => void;
   onAdminToggleServiceVerification?: (serviceId: number) => void;
   onAdminToggleStationVerification?: (stationId: number) => void;
+  onQuickReportStation?: (
+    input: ReportInput
+  ) => Promise<{ ok: boolean; message: string }>;
+  onSubmitServiceReview?: (input: {
+    comment?: string;
+    score: number;
+    serviceId: number;
+  }) => Promise<{ ok: boolean; message: string }>;
   services: SupportServiceWithDistance[];
   stations: (StationWithLatest & { distanceKm?: number | null })[];
   selectedKey: string | null;
@@ -31,6 +40,184 @@ type StationsMapProps = {
   onRequestReportStation: (stationId: number, source: "detail" | "popup") => void;
   userLocation: { lat: number; lng: number } | null;
 };
+
+function StationQuickReportPopup({
+  onSubmit,
+  station,
+}: {
+  onSubmit?: (input: ReportInput) => Promise<{ ok: boolean; message: string }>;
+  station: StationWithLatest;
+}) {
+  const [fuelType, setFuelType] = useState<ReportInput["fuel_type"]>(
+    station.latestReport?.fuel_type ?? "especial"
+  );
+  const [availabilityStatus, setAvailabilityStatus] =
+    useState<ReportInput["availability_status"]>(
+      station.latestReport?.availability_status ?? "si_hay"
+    );
+  const [queueStatus, setQueueStatus] = useState<ReportInput["queue_status"]>(
+    station.latestReport?.queue_status ?? "sin_dato"
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const submit = async () => {
+    if (!onSubmit) return;
+
+    setSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const result = await onSubmit({
+        availability_status: availabilityStatus,
+        fuel_type: fuelType,
+        queue_status: queueStatus,
+        station_id: station.id,
+      });
+      setFeedback(result);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Reporte rapido
+      </div>
+      <div className="grid gap-2">
+        <select
+          value={fuelType}
+          onChange={(event) => setFuelType(event.target.value as ReportInput["fuel_type"])}
+          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+        >
+          <option value="especial">Especial</option>
+          <option value="premium">Premium</option>
+          <option value="diesel">Diesel</option>
+        </select>
+        <select
+          value={availabilityStatus}
+          onChange={(event) =>
+            setAvailabilityStatus(event.target.value as ReportInput["availability_status"])
+          }
+          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+        >
+          <option value="si_hay">Si hay</option>
+          <option value="no_hay">No hay</option>
+          <option value="sin_dato">Sin dato</option>
+        </select>
+        <select
+          value={queueStatus}
+          onChange={(event) => setQueueStatus(event.target.value as ReportInput["queue_status"])}
+          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+        >
+          <option value="sin_dato">Sin fila</option>
+          <option value="corta">Fila corta</option>
+          <option value="media">Fila media</option>
+          <option value="larga">Fila larga</option>
+        </select>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={submitting}
+          className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+        >
+          {submitting ? "Enviando..." : "Enviar rapido"}
+        </button>
+      </div>
+      {feedback ? (
+        <div
+          className={`rounded-lg px-2 py-1.5 text-xs ${
+            feedback.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+          }`}
+        >
+          {feedback.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ServiceReviewPopup({
+  onSubmit,
+  serviceId,
+}: {
+  onSubmit?: (input: {
+    comment?: string;
+    score: number;
+    serviceId: number;
+  }) => Promise<{ ok: boolean; message: string }>;
+  serviceId: number;
+}) {
+  const [score, setScore] = useState(5);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const submit = async () => {
+    if (!onSubmit) return;
+
+    setSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const result = await onSubmit({
+        comment: comment.trim() || undefined,
+        score,
+        serviceId,
+      });
+      setFeedback(result);
+      if (result.ok) {
+        setComment("");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Review anonima
+      </div>
+      <select
+        value={score}
+        onChange={(event) => setScore(Number(event.target.value))}
+        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+      >
+        <option value={5}>5 estrellas</option>
+        <option value={4}>4 estrellas</option>
+        <option value={3}>3 estrellas</option>
+        <option value={2}>2 estrellas</option>
+        <option value={1}>1 estrella</option>
+      </select>
+      <textarea
+        value={comment}
+        onChange={(event) => setComment(event.target.value.slice(0, 180))}
+        placeholder="Review corta y anonima"
+        rows={2}
+        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={submitting}
+        className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+      >
+        {submitting ? "Enviando..." : "Enviar review"}
+      </button>
+      {feedback ? (
+        <div
+          className={`rounded-lg px-2 py-1.5 text-xs ${
+            feedback.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+          }`}
+        >
+          {feedback.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function getStationMarkerColor(status?: string | null) {
   switch (status) {
@@ -152,6 +339,8 @@ export default function StationsMap({
   onAdminToggleServicePublication,
   onAdminToggleServiceVerification,
   onAdminToggleStationVerification,
+  onQuickReportStation,
+  onSubmitServiceReview,
   services,
   stations,
   selectedKey,
@@ -324,6 +513,10 @@ export default function StationsMap({
                       </>
                     ) : null}
                   </div>
+                  <ServiceReviewPopup
+                    onSubmit={onSubmitServiceReview}
+                    serviceId={service.id}
+                  />
                 </div>
               </Popup>
             </Marker>
@@ -423,6 +616,10 @@ export default function StationsMap({
                       </>
                     ) : null}
                   </div>
+                  <StationQuickReportPopup
+                    onSubmit={onQuickReportStation}
+                    station={station}
+                  />
                 </div>
               </Popup>
             </Marker>

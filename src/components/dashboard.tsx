@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { RatingStars } from "@/components/rating-stars";
 import { ReportForm } from "@/components/report-form";
-import { trackAppEvent } from "@/lib/analytics";
+import { ensureVisitorId, trackAppEvent } from "@/lib/analytics";
 import type { ServiceAdminInput } from "@/lib/admin-service-types";
 import type { StationAdminInput } from "@/lib/admin-types";
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
@@ -280,6 +280,7 @@ export function Dashboard({
 
       if (
         userLocation &&
+        !isAdminMode &&
         typeof station.latitude === "number" &&
         typeof station.longitude === "number"
       ) {
@@ -296,7 +297,7 @@ export function Dashboard({
         distanceKm,
       };
     });
-  }, [stations, userLocation]);
+  }, [isAdminMode, stations, userLocation]);
 
   const servicesWithDistance = useMemo<SupportServiceWithDistance[]>(() => {
     return services.map((service) => {
@@ -304,6 +305,7 @@ export function Dashboard({
 
       if (
         userLocation &&
+        !isAdminMode &&
         typeof service.latitude === "number" &&
         typeof service.longitude === "number"
       ) {
@@ -320,7 +322,7 @@ export function Dashboard({
         distanceKm,
       };
     });
-  }, [services, userLocation]);
+  }, [isAdminMode, services, userLocation]);
 
   const normalizedQuery = normalizeSearchValue(search);
 
@@ -402,12 +404,12 @@ export function Dashboard({
   }, [results, selectedKey]);
 
   useEffect(() => {
-    if (!userLocation || locationState !== "granted" || didAutoPickNearest) return;
+    if (isAdminMode || !userLocation || locationState !== "granted" || didAutoPickNearest) return;
     if (!results[0]) return;
 
     setSelectedKey(results[0].key);
     setDidAutoPickNearest(true);
-  }, [didAutoPickNearest, locationState, results, userLocation]);
+  }, [didAutoPickNearest, isAdminMode, locationState, results, userLocation]);
 
   useEffect(() => {
     setShowReportForm(false);
@@ -450,6 +452,10 @@ export function Dashboard({
   );
 
   const handleUseMyLocation = (options?: { silent?: boolean }) => {
+    if (isAdminMode) {
+      return;
+    }
+
     if (!navigator.geolocation) {
       setLocationState("error");
       return;
@@ -478,10 +484,10 @@ export function Dashboard({
   };
 
   useEffect(() => {
-    if (requestedInitialLocation || typeof navigator === "undefined") return;
+    if (isAdminMode || requestedInitialLocation || typeof navigator === "undefined") return;
     setRequestedInitialLocation(true);
     handleUseMyLocation({ silent: true });
-  }, [requestedInitialLocation]);
+  }, [isAdminMode, requestedInitialLocation]);
 
   const handleSelectResult = (
     key: string,
@@ -782,10 +788,14 @@ export function Dashboard({
 
   const handleSubmitReport = async (input: ReportInput) => {
     try {
+      const visitorId = ensureVisitorId();
       const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
+        body: JSON.stringify({
+          ...input,
+          visitorId,
+        }),
       });
 
       const json = (await res.json()) as { error?: string; report?: Report };
@@ -816,6 +826,68 @@ export function Dashboard({
     }
   };
 
+  const handleQuickReport = async (input: ReportInput) => {
+    const result = await handleSubmitReport(input);
+    if (isAdminMode) {
+      setAdminFeedback({
+        kind: result.ok ? "success" : "error",
+        message: result.message,
+      });
+    }
+    return result;
+  };
+
+  const handleSubmitServiceReview = async (input: {
+    comment?: string;
+    score: number;
+    serviceId: number;
+  }) => {
+    try {
+      const visitorId = ensureVisitorId();
+      const res = await fetch("/api/service-reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          comment: input.comment,
+          latitude: userLocation?.lat ?? null,
+          longitude: userLocation?.lng ?? null,
+          score: input.score,
+          serviceId: input.serviceId,
+          visitorId,
+        }),
+      });
+
+      const json = (await res.json()) as {
+        error?: string;
+        ratingCount?: number;
+        ratingScore?: number;
+      };
+
+      if (!res.ok) {
+        throw new Error(json.error || "No se pudo guardar la review.");
+      }
+
+      setServices((current) =>
+        current.map((service) =>
+          service.id === input.serviceId
+            ? {
+                ...service,
+                rating_count: json.ratingCount ?? service.rating_count,
+                rating_score: json.ratingScore ?? service.rating_score,
+              }
+            : service
+        )
+      );
+
+      return { ok: true, message: "Review enviada." };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "No se pudo guardar la review.",
+      };
+    }
+  };
+
   const quickResults = results.slice(0, 8);
 
   return (
@@ -841,13 +913,15 @@ export function Dashboard({
               placeholder="Buscar surtidor, taller, grua, auxilio o aditivos"
               className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-500"
             />
-            <button
-              type="button"
-              onClick={() => handleUseMyLocation()}
-              className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              {locationState === "loading" ? "Ubicando..." : "Usar mi ubicacion"}
-            </button>
+            {!isAdminMode ? (
+              <button
+                type="button"
+                onClick={() => handleUseMyLocation()}
+                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {locationState === "loading" ? "Ubicando..." : "Usar mi ubicacion"}
+              </button>
+            ) : null}
             <a
               href="/sumate"
               onClick={() =>
@@ -863,10 +937,14 @@ export function Dashboard({
           </div>
 
           <div className="text-xs text-slate-500">
+            {isAdminMode &&
+              "Modo admin: el mapa no se recentra en tu ubicacion para que puedas editar varios puntos sin perder la vista actual."}
             {locationState === "granted" && "Ubicacion activada. Se priorizan los puntos mas cercanos y el mapa toma tu zona actual."}
             {locationState === "denied" && "La ubicacion fue denegada. El mapa sigue funcionando."}
             {locationState === "error" && "No se pudo obtener tu ubicacion en este navegador."}
-            {locationState === "idle" && "Busca o toca un marcador para ver estado, reputacion y contacto rapido."}
+            {!isAdminMode &&
+              locationState === "idle" &&
+              "Busca o toca un marcador para ver estado, reputacion y contacto rapido."}
           </div>
         </div>
       </section>
@@ -935,6 +1013,8 @@ export function Dashboard({
           <StationsMap
             adminActionKey={adminActionKey}
             isAdminMode={isAdminMode}
+            onQuickReportStation={handleQuickReport}
+            onSubmitServiceReview={handleSubmitServiceReview}
             onAdminDeleteService={handleAdminDeleteService}
             onAdminDeleteStation={handleAdminDeleteStation}
             onAdminOpenEditor={handleOpenAdminEditor}
@@ -946,7 +1026,7 @@ export function Dashboard({
             selectedKey={selectedKey}
             onRequestReportStation={handleRequestReportStation}
             onSelectKey={(key) => handleSelectResult(key, "map")}
-            userLocation={userLocation}
+            userLocation={isAdminMode ? null : userLocation}
           />
         </div>
       </section>
