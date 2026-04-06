@@ -41,6 +41,7 @@ export type OSMStationPreviewPayload = Pick<
   | "fuel_gnv"
   | "fuel_premium"
   | "latitude"
+  | "longitude"
   | "name"
   | "notes"
   | "source_url"
