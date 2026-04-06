@@ -67,6 +67,9 @@ export function ServiceTable({ services }: { services: ServiceAdminRow[] }) {
             placeholder="Buscar por nombre, categoría, zona o contacto"
             className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500 lg:flex-1"
           />
+          <Link href="/admin/import/osm" className="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Importar OSM
+          </Link>
           <Link href="/admin/services/new" className="rounded-xl bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-800">
             Nuevo servicio
           </Link>

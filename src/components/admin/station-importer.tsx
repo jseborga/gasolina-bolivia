@@ -167,6 +167,12 @@ export function StationImporter() {
           >
             Auditar importadas
           </Link>
+          <Link
+            href="/admin/import/osm"
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Importar desde OSM
+          </Link>
         </div>
 
         <textarea
