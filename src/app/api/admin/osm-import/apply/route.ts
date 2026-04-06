@@ -24,6 +24,11 @@ import {
 } from "@/lib/supabase-errors";
 import { getAdminSupabase } from "@/lib/supabase-server";
 
+type MutationResultRow = {
+  id: number;
+  name: string;
+};
+
 function mergeText(...values: Array<string | null | undefined>) {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -60,6 +65,10 @@ function coordinatesChanged(
     Math.abs(previousLatitude - nextLatitude) > 0.000001 ||
     Math.abs(previousLongitude - nextLongitude) > 0.000001
   );
+}
+
+function hasMutationResult(data: MutationResultRow | null): data is MutationResultRow {
+  return data != null;
 }
 
 async function getStationMap(ids: number[]) {
@@ -237,6 +246,13 @@ export async function POST(request: NextRequest) {
             );
           }
 
+          if (!hasMutationResult(data)) {
+            return NextResponse.json(
+              { error: `La creación de estación "${incoming.name}" no devolvió un registro.` },
+              { status: 500 }
+            );
+          }
+
           created.push({ id: data.id, name: data.name, target: "stations" });
           continue;
         }
@@ -305,6 +321,13 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        if (!hasMutationResult(data)) {
+          return NextResponse.json(
+            { error: `La actualización de estación "${incoming.name}" no devolvió un registro.` },
+            { status: 500 }
+          );
+        }
+
         updated.push({ id: data.id, name: data.name, target: "stations" });
         continue;
       }
@@ -352,6 +375,13 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             { error: `Error creando servicio "${incoming.name}": ${error.message}` },
             { status: 400 }
+          );
+        }
+
+        if (!hasMutationResult(data)) {
+          return NextResponse.json(
+            { error: `La creación de servicio "${incoming.name}" no devolvió un registro.` },
+            { status: 500 }
           );
         }
 
@@ -428,6 +458,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: `Error actualizando servicio "${incoming.name}": ${error.message}` },
           { status: 400 }
+        );
+      }
+
+      if (!hasMutationResult(data)) {
+        return NextResponse.json(
+          { error: `La actualización de servicio "${incoming.name}" no devolvió un registro.` },
+          { status: 500 }
         );
       }
 
