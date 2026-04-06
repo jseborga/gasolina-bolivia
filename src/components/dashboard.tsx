@@ -516,6 +516,12 @@ export function Dashboard({
     setShowReportForm(false);
   }, [selectedKey]);
 
+  useEffect(() => {
+    if (!isAdminMode && showIncidentFilters && selectedKey !== null) {
+      setSelectedKey(null);
+    }
+  }, [isAdminMode, selectedKey, showIncidentFilters]);
+
   const selectedResult = useMemo(
     () => results.find((item) => item.key === selectedKey) ?? null,
     [results, selectedKey]
@@ -589,6 +595,7 @@ export function Dashboard({
   const nearbyTrafficIncident = nearbyTrafficIncidents[0] ?? null;
   const selectedIncidentFilterLabel =
     INCIDENT_FILTER_OPTIONS.find(([value]) => value === incidentMapFilter)?.[1] ?? "Todos";
+  const incidentOnlyMode = !isAdminMode && showIncidentFilters;
 
   const handleUseMyLocation = (options?: { silent?: boolean; source?: "auto" | "button" }) => {
     if (isAdminMode) {
@@ -1638,8 +1645,8 @@ export function Dashboard({
             onAdminToggleServicePublication={handleAdminToggleServicePublication}
             onAdminToggleServiceVerification={handleAdminToggleServiceVerification}
             onAdminToggleStationVerification={handleAdminToggleStationVerification}
-            services={mapServices}
-            stations={mapStations}
+            services={incidentOnlyMode ? [] : mapServices}
+            stations={incidentOnlyMode ? [] : mapStations}
             selectedKey={selectedKey}
             onRequestReportStation={handleRequestReportStation}
             onSelectKey={(key) => handleSelectResult(key, "map")}
@@ -1663,7 +1670,11 @@ export function Dashboard({
             <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5">
               <button
                 type="button"
-                onClick={() => setPublicMapFilter("stations")}
+                onClick={() => {
+                  setShowIncidentFilters(false);
+                  setShowPublishMenu(false);
+                  setPublicMapFilter("stations");
+                }}
                 aria-label="Estaciones de servicio"
                 title="Estaciones de servicio"
                 className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
@@ -1676,7 +1687,11 @@ export function Dashboard({
               </button>
               <button
                 type="button"
-                onClick={() => setPublicMapFilter("servicio_mecanico")}
+                onClick={() => {
+                  setShowIncidentFilters(false);
+                  setShowPublishMenu(false);
+                  setPublicMapFilter("servicio_mecanico");
+                }}
                 aria-label="Auxilio mecanico"
                 title="Auxilio mecanico"
                 className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
@@ -1689,7 +1704,11 @@ export function Dashboard({
               </button>
               <button
                 type="button"
-                onClick={() => setPublicMapFilter("all")}
+                onClick={() => {
+                  setShowIncidentFilters(false);
+                  setShowPublishMenu(false);
+                  setPublicMapFilter("all");
+                }}
                 className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
                   publicMapFilter === "all"
                     ? "bg-slate-950 text-white shadow-sm"
