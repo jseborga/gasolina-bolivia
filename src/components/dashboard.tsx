@@ -1660,13 +1660,13 @@ export function Dashboard({
                 className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
               />
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5">
               <button
                 type="button"
                 onClick={() => setPublicMapFilter("stations")}
                 aria-label="Estaciones de servicio"
                 title="Estaciones de servicio"
-                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
                   publicMapFilter === "stations"
                     ? "bg-slate-950 text-white shadow-sm"
                     : "bg-white text-slate-700 ring-1 ring-slate-200"
@@ -1679,7 +1679,7 @@ export function Dashboard({
                 onClick={() => setPublicMapFilter("servicio_mecanico")}
                 aria-label="Auxilio mecanico"
                 title="Auxilio mecanico"
-                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
                   publicMapFilter === "servicio_mecanico"
                     ? "bg-slate-950 text-white shadow-sm"
                     : "bg-white text-slate-700 ring-1 ring-slate-200"
@@ -1690,7 +1690,7 @@ export function Dashboard({
               <button
                 type="button"
                 onClick={() => setPublicMapFilter("all")}
-                className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
                   publicMapFilter === "all"
                     ? "bg-slate-950 text-white shadow-sm"
                     : "bg-white text-slate-700 ring-1 ring-slate-200"
@@ -1704,7 +1704,7 @@ export function Dashboard({
                   setShowPublishMenu(false);
                   setShowIncidentFilters((current) => !current);
                 }}
-                className="ml-auto rounded-full bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-200"
+                className="shrink-0 rounded-full bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-200"
               >
                 Incidentes
               </button>
@@ -1714,7 +1714,7 @@ export function Dashboard({
                   setShowIncidentFilters(false);
                   setShowPublishMenu((current) => !current);
                 }}
-                className="rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white"
+                className="shrink-0 rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white"
               >
                 Publicar
               </button>
