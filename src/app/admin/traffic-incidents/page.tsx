@@ -82,7 +82,9 @@ export default async function AdminTrafficIncidentsPage() {
                   <th className="px-4 py-3">Tipo</th>
                   <th className="px-4 py-3">Detalle</th>
                   <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Duracion</th>
                   <th className="px-4 py-3">Confirmaciones</th>
+                  <th className="px-4 py-3">Rechazos</th>
                   <th className="px-4 py-3">Punto</th>
                 </tr>
               </thead>
@@ -97,7 +99,9 @@ export default async function AdminTrafficIncidentsPage() {
                     </td>
                     <td className="px-4 py-4 text-slate-600">{item.description || "-"}</td>
                     <td className="px-4 py-4 text-slate-600">{item.status}</td>
+                    <td className="px-4 py-4 text-slate-600">{item.duration_minutes} min</td>
                     <td className="px-4 py-4 text-slate-600">{item.confirmation_count}</td>
+                    <td className="px-4 py-4 text-slate-600">{item.rejection_count}</td>
                     <td className="px-4 py-4 text-slate-600">
                       {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
                     </td>
@@ -105,7 +109,7 @@ export default async function AdminTrafficIncidentsPage() {
                 ))}
                 {incidents.length === 0 ? (
                   <tr className="border-t border-slate-100">
-                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                       Aun no hay incidentes viales registrados.
                     </td>
                   </tr>

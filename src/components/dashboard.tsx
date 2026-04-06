@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -971,6 +971,7 @@ export function Dashboard({
 
   const handleCreateTrafficIncident = async (input: {
     description?: string;
+    durationMinutes?: number;
     incidentType:
       | "control_vial"
       | "corte_via"
@@ -988,6 +989,7 @@ export function Dashboard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description: input.description,
+          durationMinutes: input.durationMinutes,
           incidentType: input.incidentType,
           latitude: input.latitude,
           longitude: input.longitude,
@@ -1002,7 +1004,11 @@ export function Dashboard({
 
       setTrafficIncidents((current) => [json.incident as TrafficIncident, ...current]);
 
-      return { incident: json.incident as TrafficIncident, message: "Incidente enviado.", ok: true };
+      return {
+        incident: json.incident as TrafficIncident,
+        message: "Incidente enviado para confirmacion comunitaria.",
+        ok: true,
+      };
     } catch (error) {
       return {
         message:
@@ -1012,13 +1018,17 @@ export function Dashboard({
     }
   };
 
-  const handleConfirmTrafficIncident = async (incidentId: number) => {
+  const handleConfirmTrafficIncident = async (
+    incidentId: number,
+    action: "confirm" | "reject"
+  ) => {
     try {
       const visitorId = ensureVisitorId();
       const res = await fetch(`/api/traffic-incidents/${incidentId}/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action,
           latitude: userLocation?.lat ?? null,
           longitude: userLocation?.lng ?? null,
           visitorId,
@@ -1029,27 +1039,45 @@ export function Dashboard({
         alreadyConfirmed?: boolean;
         confirmationCount?: number;
         error?: string;
+        rejectionCount?: number;
+        status?: "active" | "expired";
       };
 
       if (!res.ok) {
         throw new Error(json.error || "No se pudo confirmar el incidente.");
       }
 
-      setTrafficIncidents((current) =>
-        current.map((incident) =>
+      setTrafficIncidents((current) => {
+        if (json.status === "expired") {
+          return current.filter((incident) => incident.id !== incidentId);
+        }
+
+        return current.map((incident) =>
           incident.id === incidentId
             ? {
                 ...incident,
                 confirmation_count: json.confirmationCount ?? incident.confirmation_count,
+                rejection_count: json.rejectionCount ?? incident.rejection_count,
               }
             : incident
-        )
-      );
+        );
+      });
 
       return {
         confirmationCount: json.confirmationCount,
-        message: json.alreadyConfirmed ? "Ya habias confirmado este incidente." : "Incidente confirmado.",
+        rejectionCount: json.rejectionCount,
+        message:
+          json.status === "expired"
+            ? "El incidente ya no sigue y fue retirado por consenso."
+            : json.alreadyConfirmed
+              ? action === "reject"
+                ? "Ya habias marcado este incidente como no vigente."
+                : "Ya habias confirmado este incidente."
+              : action === "reject"
+                ? "Marcaste que este incidente ya no sigue."
+                : "Incidente confirmado.",
         ok: true,
+        status: json.status,
       };
     } catch (error) {
       return {
@@ -1297,11 +1325,11 @@ export function Dashboard({
       ) : null}
 
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="pointer-events-none absolute left-3 top-3 z-[500]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[500] flex justify-center px-3">
           <button
             type="button"
             onClick={() => setIncidentReportMode((current) => !current)}
-            className={`pointer-events-auto rounded-xl px-3 py-2 text-xs font-medium shadow-sm ring-1 backdrop-blur ${
+            className={`pointer-events-auto rounded-xl px-4 py-2 text-xs font-medium shadow-sm ring-1 backdrop-blur ${
               incidentReportMode
                 ? "bg-amber-500 text-white ring-amber-500"
                 : "bg-white/95 text-slate-800 ring-slate-200 hover:bg-white"

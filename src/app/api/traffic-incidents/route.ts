@@ -13,6 +13,27 @@ const VALID_INCIDENT_TYPES: TrafficIncidentType[] = [
   "otro",
 ];
 
+const DEFAULT_DURATION_BY_TYPE: Record<TrafficIncidentType, number> = {
+  accidente: 120,
+  control_vial: 60,
+  corte_via: 180,
+  derrumbe: 360,
+  marcha: 240,
+  otro: 120,
+};
+
+function normalizeDurationMinutes(value: unknown, incidentType: TrafficIncidentType) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  const fallback = DEFAULT_DURATION_BY_TYPE[incidentType] ?? 120;
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  const rounded = Math.round(parsed);
+  return Math.min(720, Math.max(15, rounded));
+}
+
 function getIpAddress(request: NextRequest) {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
@@ -78,6 +99,10 @@ export async function POST(request: NextRequest) {
     }
 
     const description = normalizeDescription(body.description);
+    const durationMinutes = normalizeDurationMinutes(
+      body.durationMinutes,
+      incidentType as TrafficIncidentType
+    );
     const latitudeBucket = normalizeCoordinateBucket(latitude);
     const longitudeBucket = normalizeCoordinateBucket(longitude);
     const ipAddress = getIpAddress(request);
@@ -96,6 +121,8 @@ export async function POST(request: NextRequest) {
         description,
         latitude,
         longitude,
+        duration_minutes: durationMinutes,
+        expires_at: new Date(Date.now() + durationMinutes * 60 * 1000).toISOString(),
         reporter_key: reviewerKey,
         visitor_id: visitorId,
         ip_address: ipAddress,
@@ -158,7 +185,7 @@ export async function POST(request: NextRequest) {
 
     const { error: updateError } = await supabase
       .from("traffic_incidents")
-      .update({ confirmation_count: 1 })
+      .update({ confirmation_count: 1, rejection_count: 0 })
       .eq("id", data.id);
 
     if (updateError) {
@@ -168,6 +195,8 @@ export async function POST(request: NextRequest) {
     const incident: TrafficIncident = {
       ...(data as TrafficIncident),
       confirmation_count: 1,
+      duration_minutes: durationMinutes,
+      rejection_count: 0,
     };
 
     const { error: analyticsError } = await supabase.from("app_events").insert({
@@ -181,6 +210,7 @@ export async function POST(request: NextRequest) {
       user_agent: request.headers.get("user-agent"),
       visitor_id: visitorId || null,
       metadata: {
+        duration_minutes: durationMinutes,
         incident_type: incidentType,
       },
     });

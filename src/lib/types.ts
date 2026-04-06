@@ -16,6 +16,7 @@ export type TrafficIncidentType =
   | "otro";
 
 export type TrafficIncidentStatus = "active" | "resolved" | "expired";
+export type TrafficIncidentVote = "confirm" | "reject";
 
 export type UserLocation = {
   lat: number;
@@ -159,6 +160,8 @@ export type TrafficIncident = {
   longitude: number;
   radius_meters: number;
   confirmation_count: number;
+  rejection_count: number;
+  duration_minutes: number;
   status: TrafficIncidentStatus;
   visitor_id: string | null;
   created_at: string;

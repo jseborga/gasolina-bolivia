@@ -25,6 +25,7 @@ import type {
   SupportServiceWithDistance,
   TrafficIncident,
   TrafficIncidentType,
+  TrafficIncidentVote,
 } from "@/lib/types";
 
 type StationsMapProps = {
@@ -40,10 +41,18 @@ type StationsMapProps = {
   onAdminToggleServiceVerification?: (serviceId: number) => void;
   onAdminToggleStationVerification?: (stationId: number) => void;
   onConfirmTrafficIncident?: (
-    incidentId: number
-  ) => Promise<{ ok: boolean; message: string; confirmationCount?: number }>;
+    incidentId: number,
+    action: TrafficIncidentVote
+  ) => Promise<{
+    ok: boolean;
+    message: string;
+    confirmationCount?: number;
+    rejectionCount?: number;
+    status?: "active" | "expired";
+  }>;
   onCreateTrafficIncident?: (input: {
     description?: string;
+    durationMinutes?: number;
     incidentType: TrafficIncidentType;
     latitude: number;
     longitude: number;
@@ -105,6 +114,23 @@ function getTrafficIncidentLabel(type: TrafficIncidentType) {
 
 function getTrafficIncidentColor(type: TrafficIncidentType) {
   return INCIDENT_COLORS[type] ?? "#0f172a";
+}
+
+const DEFAULT_INCIDENT_DURATION_BY_TYPE: Record<TrafficIncidentType, number> = {
+  accidente: 120,
+  control_vial: 60,
+  corte_via: 180,
+  derrumbe: 360,
+  marcha: 240,
+  otro: 120,
+};
+
+const INCIDENT_DURATION_OPTIONS = [30, 60, 120, 240, 360];
+
+function getIncidentDurationLabel(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes % 60 === 0) return `${minutes / 60} h`;
+  return `${(minutes / 60).toFixed(1)} h`;
 }
 
 function formatIncidentExpiry(expiresAt?: string | null) {
@@ -495,15 +521,23 @@ function IncidentDraftPopup({
   onCancel: () => void;
   onSubmit?: (input: {
     description?: string;
+    durationMinutes?: number;
     incidentType: TrafficIncidentType;
     latitude: number;
     longitude: number;
   }) => Promise<{ incident?: TrafficIncident; ok: boolean; message: string }>;
 }) {
   const [incidentType, setIncidentType] = useState<TrafficIncidentType>("control_vial");
+  const [durationMinutes, setDurationMinutes] = useState(
+    DEFAULT_INCIDENT_DURATION_BY_TYPE.control_vial
+  );
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    setDurationMinutes(DEFAULT_INCIDENT_DURATION_BY_TYPE[incidentType]);
+  }, [incidentType]);
 
   const submit = async () => {
     if (!onSubmit) return;
@@ -514,6 +548,7 @@ function IncidentDraftPopup({
     try {
       const result = await onSubmit({
         description,
+        durationMinutes,
         incidentType,
         latitude,
         longitude,
@@ -555,6 +590,22 @@ function IncidentDraftPopup({
             onClick={() => setIncidentType(option)}
           />
         ))}
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+          Duracion estimada
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {INCIDENT_DURATION_OPTIONS.map((option) => (
+            <ChoiceChip
+              key={option}
+              active={durationMinutes === option}
+              label={getIncidentDurationLabel(option)}
+              onClick={() => setDurationMinutes(option)}
+            />
+          ))}
+        </div>
       </div>
 
       <textarea
@@ -606,23 +657,34 @@ function TrafficIncidentPopupCard({
   isAdminMode: boolean;
   isBusy: boolean;
   onConfirm?: (
-    incidentId: number
-  ) => Promise<{ ok: boolean; message: string; confirmationCount?: number }>;
+    incidentId: number,
+    action: TrafficIncidentVote
+  ) => Promise<{
+    ok: boolean;
+    message: string;
+    confirmationCount?: number;
+    rejectionCount?: number;
+    status?: "active" | "expired";
+  }>;
   onResolve?: (incidentId: number) => Promise<{ ok: boolean; message: string }>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmationCount, setConfirmationCount] = useState(incident.confirmation_count);
+  const [rejectionCount, setRejectionCount] = useState(incident.rejection_count);
 
-  const submitConfirm = async () => {
+  const submitVote = async (action: TrafficIncidentVote) => {
     if (!onConfirm) return;
 
     setSubmitting(true);
     setFeedback(null);
     try {
-      const result = await onConfirm(incident.id);
+      const result = await onConfirm(incident.id, action);
       if (result.ok && typeof result.confirmationCount === "number") {
         setConfirmationCount(result.confirmationCount);
+      }
+      if (result.ok && typeof result.rejectionCount === "number") {
+        setRejectionCount(result.rejectionCount);
       }
       setFeedback(result.message);
     } finally {
@@ -648,22 +710,38 @@ function TrafficIncidentPopupCard({
       <div className="text-sm font-semibold leading-tight text-slate-900">
         {getTrafficIncidentLabel(incident.incident_type)}
       </div>
-      <div className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800">
-        {confirmationCount} confirmacion{confirmationCount === 1 ? "" : "es"}
+      <div className="flex flex-wrap gap-2 text-[11px]">
+        <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-800">
+          {confirmationCount} confirma{confirmationCount === 1 ? "" : "n"}
+        </span>
+        <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">
+          {rejectionCount} ya no sigue
+        </span>
       </div>
       <div className="text-[11px] text-slate-500">
         Reportado {formatRelativeTime(incident.created_at)} · activo hasta{" "}
         {formatIncidentExpiry(incident.expires_at)}
       </div>
+      <div className="text-[11px] text-slate-500">
+        Duracion prevista: {getIncidentDurationLabel(incident.duration_minutes)}
+      </div>
       {incident.description ? <div>{incident.description}</div> : null}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={submitConfirm}
+          onClick={() => submitVote("confirm")}
           disabled={submitting || isBusy}
           className="rounded-lg border border-emerald-300 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 disabled:opacity-60"
         >
           {submitting ? "Enviando..." : "Confirmar"}
+        </button>
+        <button
+          type="button"
+          onClick={() => submitVote("reject")}
+          disabled={submitting || isBusy}
+          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 disabled:opacity-60"
+        >
+          Ya no sigue
         </button>
         {isAdminMode ? (
           <button
