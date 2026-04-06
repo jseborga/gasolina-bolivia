@@ -51,7 +51,27 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="flex min-h-screen flex-col">
+          <div className="flex-1">{children}</div>
+          <footer className="border-t border-slate-200 bg-white px-6 py-5">
+            <div className="mx-auto flex max-w-5xl flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="font-medium text-slate-900">Contacto</div>
+                <div>WhatsApp: +59178879596</div>
+              </div>
+              <a
+                href="https://wa.me/59178879596?text=Quiero%20informacion%20sobre%20la%20app%20de%20gasolineras"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-sky-700 underline underline-offset-2"
+              >
+                Quiero informacion sobre la app de gasolineras
+              </a>
+            </div>
+          </footer>
+        </div>
+      </body>
     </html>
   );
 }

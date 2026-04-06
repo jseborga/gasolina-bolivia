@@ -61,7 +61,7 @@ function PopupTabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+      className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
         active
           ? "bg-slate-900 text-white"
           : "border border-slate-300 bg-white text-slate-700"
@@ -85,7 +85,7 @@ function ChoiceChip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-3 py-2 text-xs font-medium ${
+      className={`rounded-full px-2.5 py-1.5 text-[11px] font-medium ${
         active
           ? "bg-slate-900 text-white"
           : "border border-slate-300 bg-white text-slate-700"
@@ -137,12 +137,12 @@ function StationQuickReportPopup({
 
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         Reporte rapido
       </div>
       <div className="space-y-3">
         <div className="space-y-2">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
             Combustible
           </div>
           <div className="flex flex-wrap gap-2">
@@ -165,7 +165,7 @@ function StationQuickReportPopup({
         </div>
 
         <div className="space-y-2">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
             Estado
           </div>
           <div className="flex flex-wrap gap-2">
@@ -188,7 +188,7 @@ function StationQuickReportPopup({
         </div>
 
         <div className="space-y-2">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
             Fila
           </div>
           <div className="flex flex-wrap gap-2">
@@ -219,14 +219,14 @@ function StationQuickReportPopup({
           type="button"
           onClick={submit}
           disabled={submitting}
-          className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+          className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white disabled:opacity-60"
         >
           {submitting ? "Enviando..." : "Enviar estado"}
         </button>
       </div>
       {feedback ? (
         <div
-          className={`rounded-lg px-2 py-1.5 text-xs ${
+          className={`rounded-lg px-2 py-1.5 text-[11px] ${
             feedback.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
           }`}
         >
@@ -276,7 +276,7 @@ function StationReviewPopup({
 
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         Calificacion anonima
       </div>
       <div className="flex flex-wrap gap-1">
@@ -302,19 +302,19 @@ function StationReviewPopup({
         onChange={(event) => setComment(event.target.value.slice(0, 180))}
         placeholder="Comentario corto opcional"
         rows={2}
-        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-800"
       />
       <button
         type="button"
         onClick={submit}
         disabled={submitting}
-        className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+        className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white disabled:opacity-60"
       >
         {submitting ? "Enviando..." : "Enviar calificacion"}
       </button>
       {feedback ? (
         <div
-          className={`rounded-lg px-2 py-1.5 text-xs ${
+          className={`rounded-lg px-2 py-1.5 text-[11px] ${
             feedback.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
           }`}
         >
@@ -364,7 +364,7 @@ function ServiceReviewPopup({
 
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         Calificacion anonima
       </div>
       <div className="flex flex-wrap gap-1">
@@ -390,19 +390,19 @@ function ServiceReviewPopup({
         onChange={(event) => setComment(event.target.value.slice(0, 180))}
         placeholder="Comentario corto opcional"
         rows={2}
-        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-800"
       />
       <button
         type="button"
         onClick={submit}
         disabled={submitting}
-        className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+        className="rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white disabled:opacity-60"
       >
         {submitting ? "Enviando..." : "Enviar calificacion"}
       </button>
       {feedback ? (
         <div
-          className={`rounded-lg px-2 py-1.5 text-xs ${
+          className={`rounded-lg px-2 py-1.5 text-[11px] ${
             feedback.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
           }`}
         >
@@ -444,8 +444,8 @@ function StationPopupCard({
   const key = `station-${station.id}`;
 
   return (
-    <div className="min-w-[220px] space-y-3 text-sm text-slate-800">
-      <div className="font-semibold">{station.name}</div>
+    <div className="w-[72vw] min-w-[210px] max-w-[250px] space-y-2 text-xs text-slate-800 sm:w-[250px]">
+      <div className="text-sm font-semibold leading-tight">{station.name}</div>
       <div className="flex flex-wrap gap-2">
         <PopupTabButton active={tab === "info"} onClick={() => setTab("info")}>
           Info
@@ -463,7 +463,7 @@ function StationPopupCard({
           <div>{station.zone || "Sin zona"}</div>
           <RatingStars score={station.reputation_score} count={station.reputation_votes} />
           {isAdminMode && (
-            <div className="flex flex-wrap gap-2 text-xs">
+            <div className="flex flex-wrap gap-2 text-[11px]">
               <span
                 className={`rounded-full px-2 py-1 ${
                   station.is_verified
@@ -490,14 +490,14 @@ function StationPopupCard({
             <button
               type="button"
               onClick={() => setTab("report")}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700"
             >
               Enviar estado
             </button>
             <button
               type="button"
               onClick={() => setTab("review")}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700"
             >
               Calificar
             </button>
@@ -507,7 +507,7 @@ function StationPopupCard({
                   type="button"
                   onClick={() => onAdminOpenEditor?.(key)}
                   disabled={isBusy}
-                  className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-700 disabled:opacity-60"
+                    className="rounded-lg border border-sky-300 px-2.5 py-1.5 text-[11px] font-medium text-sky-700 disabled:opacity-60"
                 >
                   Editar
                 </button>
@@ -515,7 +515,7 @@ function StationPopupCard({
                   type="button"
                   onClick={() => onAdminToggleStationVerification?.(station.id)}
                   disabled={isBusy}
-                  className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 disabled:opacity-60"
+                    className="rounded-lg border border-emerald-300 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 disabled:opacity-60"
                 >
                   {station.is_verified ? "Quitar valid." : "Validar"}
                 </button>
@@ -523,7 +523,7 @@ function StationPopupCard({
                   type="button"
                   onClick={() => onAdminDeleteStation?.(station.id)}
                   disabled={isBusy}
-                  className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-60"
+                    className="rounded-lg border border-rose-300 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 disabled:opacity-60"
                 >
                   Eliminar
                 </button>
@@ -533,7 +533,7 @@ function StationPopupCard({
           <button
             type="button"
             onClick={() => onRequestReportStation(station.id, "popup")}
-            className="text-xs font-medium text-sky-700 underline underline-offset-2"
+            className="text-[11px] font-medium text-sky-700 underline underline-offset-2"
           >
             Abrir formulario completo
           </button>
@@ -578,8 +578,8 @@ function ServicePopupCard({
   const key = `service-${service.id}`;
 
   return (
-    <div className="min-w-[220px] space-y-3 text-sm text-slate-800">
-      <div className="font-semibold">{service.name}</div>
+    <div className="w-[72vw] min-w-[210px] max-w-[250px] space-y-2 text-xs text-slate-800 sm:w-[250px]">
+      <div className="text-sm font-semibold leading-tight">{service.name}</div>
       <div className="flex flex-wrap gap-2">
         <PopupTabButton active={tab === "info"} onClick={() => setTab("info")}>
           Info
@@ -602,7 +602,7 @@ function ServicePopupCard({
             <div>Contacto: {formatContactLabel(service.phone ?? service.whatsapp_number)}</div>
           )}
           {isAdminMode && (
-            <div className="flex flex-wrap gap-2 text-xs">
+            <div className="flex flex-wrap gap-2 text-[11px]">
               <span
                 className={`rounded-full px-2 py-1 ${
                   service.is_verified
@@ -641,7 +641,7 @@ function ServicePopupCard({
                 }
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
+                  className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-medium text-white"
               >
                 WhatsApp
               </a>
@@ -661,7 +661,7 @@ function ServicePopupCard({
                     },
                   })
                 }
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700"
               >
                 Llamar
               </a>
@@ -669,7 +669,7 @@ function ServicePopupCard({
             <button
               type="button"
               onClick={() => setTab("review")}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700"
             >
               Calificar
             </button>
@@ -679,7 +679,7 @@ function ServicePopupCard({
                   type="button"
                   onClick={() => onAdminOpenEditor?.(key)}
                   disabled={isBusy}
-                  className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-700 disabled:opacity-60"
+                    className="rounded-lg border border-sky-300 px-2.5 py-1.5 text-[11px] font-medium text-sky-700 disabled:opacity-60"
                 >
                   Editar
                 </button>
@@ -687,7 +687,7 @@ function ServicePopupCard({
                   type="button"
                   onClick={() => onAdminToggleServiceVerification?.(service.id)}
                   disabled={isBusy}
-                  className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 disabled:opacity-60"
+                    className="rounded-lg border border-emerald-300 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 disabled:opacity-60"
                 >
                   {service.is_verified ? "Quitar valid." : "Validar"}
                 </button>
@@ -695,7 +695,7 @@ function ServicePopupCard({
                   type="button"
                   onClick={() => onAdminToggleServicePublication?.(service.id)}
                   disabled={isBusy}
-                  className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 disabled:opacity-60"
+                    className="rounded-lg border border-amber-300 px-2.5 py-1.5 text-[11px] font-medium text-amber-700 disabled:opacity-60"
                 >
                   {service.is_published ? "Borrador" : "Publicar"}
                 </button>
@@ -703,7 +703,7 @@ function ServicePopupCard({
                   type="button"
                   onClick={() => onAdminDeleteService?.(service.id)}
                   disabled={isBusy}
-                  className="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-60"
+                    className="rounded-lg border border-rose-300 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 disabled:opacity-60"
                 >
                   Eliminar
                 </button>
@@ -819,9 +819,33 @@ function MapFocusController({
     const longitude = station?.longitude ?? service?.longitude;
 
     if (typeof latitude === "number" && typeof longitude === "number") {
-      map.flyTo([latitude, longitude], Math.max(map.getZoom(), 15), {
+      const zoom = Math.max(map.getZoom(), 15);
+      const size = map.getSize();
+      const isMobile = size.x < 640;
+      const targetLatLng = L.latLng(latitude, longitude);
+      const currentPoint = map.latLngToContainerPoint(targetLatLng);
+      const horizontalPadding = 20;
+      const topPadding = isMobile ? 180 : 120;
+      const bottomPadding = isMobile ? 36 : 28;
+      const alreadyVisible =
+        currentPoint.x >= horizontalPadding &&
+        currentPoint.x <= size.x - horizontalPadding &&
+        currentPoint.y >= topPadding &&
+        currentPoint.y <= size.y - bottomPadding;
+
+      if (alreadyVisible) {
+        return;
+      }
+
+      const desiredPoint = L.point(size.x / 2, isMobile ? size.y * 0.72 : size.y * 0.62);
+      const markerPoint = map.project(targetLatLng, zoom);
+      const offset = desiredPoint.subtract(size.divideBy(2));
+      const nextCenterPoint = markerPoint.subtract(offset);
+      const nextCenter = map.unproject(nextCenterPoint, zoom);
+
+      map.flyTo(nextCenter, zoom, {
         animate: true,
-        duration: 0.9,
+        duration: 0.55,
       });
     }
   }, [map, selectedKey, services, stations]);
@@ -898,7 +922,7 @@ export default function StationsMap({
                 click: () => onSelectKey(key),
               }}
             >
-              <Popup>
+              <Popup keepInView maxWidth={280}>
                 <ServicePopupCard
                   isAdminMode={isAdminMode}
                   isBusy={isBusy}
@@ -936,7 +960,7 @@ export default function StationsMap({
                 click: () => onSelectKey(key),
               }}
             >
-              <Popup>
+              <Popup keepInView maxWidth={280}>
                 <StationPopupCard
                   isAdminMode={isAdminMode}
                   isBusy={isBusy}
