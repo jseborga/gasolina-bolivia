@@ -448,7 +448,7 @@ function buildServiceNote(category: SupportServiceCategory | undefined) {
     case "aditivos":
       return "Aditivos en OSM se aproxima con tiendas de repuestos y nombres relacionados. Requiere revisión.";
     default:
-      return null;
+      return undefined;
   }
 }
 
