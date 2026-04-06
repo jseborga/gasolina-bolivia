@@ -1473,7 +1473,7 @@ export default function StationsMap({
                 }}
               />
               <Marker
-                center={[incident.latitude, incident.longitude]}
+                position={[incident.latitude, incident.longitude]}
                 icon={createTrafficIncidentMarkerIcon(incident.incident_type, isNearby)}
               >
                 <Popup keepInView maxWidth={280}>
