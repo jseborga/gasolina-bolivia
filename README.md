@@ -46,3 +46,7 @@ Versión estable para EasyPanel, con:
 
 ## Nota
 Esta versión evita el bloqueo del lockfile usando `npm install` en Docker.
+## Dependencias
+- El build del contenedor usa `npm install --package-lock=false`.
+- `package.json` es la fuente efectiva para resolver dependencias en deploy.
+- Si actualizas `next` u otra dependencia principal, regenera `package-lock.json` en una mÃ¡quina con red estable antes de volver a un flujo basado en lockfile.
