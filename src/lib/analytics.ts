@@ -4,7 +4,7 @@ export type AppEventInput = {
   path?: string;
   targetId?: number | null;
   targetName?: string | null;
-  targetType: "station" | "service" | "system" | "vendor_request";
+  targetType: "station" | "service" | "system" | "vendor_request" | "traffic_incident";
 };
 
 const VISITOR_STORAGE_KEY = "surti_mapa_visitor_id";

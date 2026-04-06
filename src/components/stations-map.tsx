@@ -1,32 +1,58 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
+import {
+  Circle,
+  CircleMarker,
+  MapContainer,
+  Marker,
+  Popup,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { trackAppEvent } from "@/lib/analytics";
 import { RatingStars } from "@/components/rating-stars";
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
-import { formatAvailability, formatFuelType, formatQueue } from "@/lib/reporting";
+import { formatAvailability, formatFuelType, formatQueue, formatRelativeTime } from "@/lib/reporting";
 import { getSupportServiceLabel } from "@/lib/services";
 import type {
   ReportInput,
   StationWithLatest,
   SupportServiceCategory,
   SupportServiceWithDistance,
+  TrafficIncident,
+  TrafficIncidentType,
 } from "@/lib/types";
 
 type StationsMapProps = {
   adminActionKey?: string | null;
+  incidentReportMode?: boolean;
+  incidents?: TrafficIncident[];
   isAdminMode?: boolean;
+  onCancelIncidentReport?: () => void;
   onAdminDeleteService?: (serviceId: number) => void;
   onAdminDeleteStation?: (stationId: number) => void;
   onAdminOpenEditor?: (key: string) => void;
   onAdminToggleServicePublication?: (serviceId: number) => void;
   onAdminToggleServiceVerification?: (serviceId: number) => void;
   onAdminToggleStationVerification?: (stationId: number) => void;
+  onConfirmTrafficIncident?: (
+    incidentId: number
+  ) => Promise<{ ok: boolean; message: string; confirmationCount?: number }>;
+  onCreateTrafficIncident?: (input: {
+    description?: string;
+    incidentType: TrafficIncidentType;
+    latitude: number;
+    longitude: number;
+  }) => Promise<{ incident?: TrafficIncident; ok: boolean; message: string }>;
   onQuickReportStation?: (
     input: ReportInput
+  ) => Promise<{ ok: boolean; message: string }>;
+  onResolveTrafficIncident?: (
+    incidentId: number
   ) => Promise<{ ok: boolean; message: string }>;
   onSubmitPlaceReport?: (input: {
     notes?: string;
@@ -54,6 +80,44 @@ type StationsMapProps = {
 };
 
 type PopupTab = "info" | "report" | "review";
+
+const INCIDENT_LABELS: Record<TrafficIncidentType, string> = {
+  accidente: "Accidente",
+  control_vial: "Control vial",
+  corte_via: "Corte de via",
+  derrumbe: "Derrumbe",
+  marcha: "Marcha",
+  otro: "Incidente",
+};
+
+const INCIDENT_COLORS: Record<TrafficIncidentType, string> = {
+  accidente: "#dc2626",
+  control_vial: "#7c3aed",
+  corte_via: "#f97316",
+  derrumbe: "#92400e",
+  marcha: "#e11d48",
+  otro: "#0f172a",
+};
+
+function getTrafficIncidentLabel(type: TrafficIncidentType) {
+  return INCIDENT_LABELS[type] ?? "Incidente";
+}
+
+function getTrafficIncidentColor(type: TrafficIncidentType) {
+  return INCIDENT_COLORS[type] ?? "#0f172a";
+}
+
+function formatIncidentExpiry(expiresAt?: string | null) {
+  if (!expiresAt) return "sin vencimiento";
+
+  const time = new Date(expiresAt);
+  if (Number.isNaN(time.getTime())) return "sin vencimiento";
+
+  return time.toLocaleTimeString("es-BO", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function PopupTabButton({
   active,
@@ -414,6 +478,207 @@ function ServiceReviewPopup({
           }`}
         >
           {feedback.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function IncidentDraftPopup({
+  latitude,
+  longitude,
+  onCancel,
+  onSubmit,
+}: {
+  latitude: number;
+  longitude: number;
+  onCancel: () => void;
+  onSubmit?: (input: {
+    description?: string;
+    incidentType: TrafficIncidentType;
+    latitude: number;
+    longitude: number;
+  }) => Promise<{ incident?: TrafficIncident; ok: boolean; message: string }>;
+}) {
+  const [incidentType, setIncidentType] = useState<TrafficIncidentType>("control_vial");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const submit = async () => {
+    if (!onSubmit) return;
+
+    setSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const result = await onSubmit({
+        description,
+        incidentType,
+        latitude,
+        longitude,
+      });
+      setFeedback(result);
+
+      if (result.ok) {
+        onCancel();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="w-[72vw] min-w-[210px] max-w-[250px] space-y-3 text-xs text-slate-800 sm:w-[250px]">
+      <div>
+        <div className="text-sm font-semibold text-slate-900">Nuevo incidente</div>
+        <div className="text-[11px] text-slate-500">
+          Marca la situacion y espera confirmaciones de otros usuarios.
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            "control_vial",
+            "corte_via",
+            "marcha",
+            "accidente",
+            "derrumbe",
+            "otro",
+          ] as TrafficIncidentType[]
+        ).map((option) => (
+          <ChoiceChip
+            key={option}
+            active={incidentType === option}
+            label={getTrafficIncidentLabel(option)}
+            onClick={() => setIncidentType(option)}
+          />
+        ))}
+      </div>
+
+      <textarea
+        value={description}
+        onChange={(event) => setDescription(event.target.value.slice(0, 180))}
+        placeholder="Detalle corto opcional"
+        className="min-h-[72px] w-full rounded-xl border border-slate-300 px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-slate-500"
+      />
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={submitting}
+          className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white disabled:opacity-60"
+        >
+          {submitting ? "Enviando..." : "Publicar incidente"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700"
+        >
+          Cancelar
+        </button>
+      </div>
+
+      {feedback ? (
+        <div
+          className={`rounded-lg px-2 py-1.5 text-[11px] ${
+            feedback.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+          }`}
+        >
+          {feedback.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TrafficIncidentPopupCard({
+  incident,
+  isAdminMode,
+  isBusy,
+  onConfirm,
+  onResolve,
+}: {
+  incident: TrafficIncident;
+  isAdminMode: boolean;
+  isBusy: boolean;
+  onConfirm?: (
+    incidentId: number
+  ) => Promise<{ ok: boolean; message: string; confirmationCount?: number }>;
+  onResolve?: (incidentId: number) => Promise<{ ok: boolean; message: string }>;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [confirmationCount, setConfirmationCount] = useState(incident.confirmation_count);
+
+  const submitConfirm = async () => {
+    if (!onConfirm) return;
+
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      const result = await onConfirm(incident.id);
+      if (result.ok && typeof result.confirmationCount === "number") {
+        setConfirmationCount(result.confirmationCount);
+      }
+      setFeedback(result.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submitResolve = async () => {
+    if (!onResolve) return;
+
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      const result = await onResolve(incident.id);
+      setFeedback(result.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="w-[72vw] min-w-[210px] max-w-[250px] space-y-2 text-xs text-slate-800 sm:w-[250px]">
+      <div className="text-sm font-semibold leading-tight text-slate-900">
+        {getTrafficIncidentLabel(incident.incident_type)}
+      </div>
+      <div className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800">
+        {confirmationCount} confirmacion{confirmationCount === 1 ? "" : "es"}
+      </div>
+      <div className="text-[11px] text-slate-500">
+        Reportado {formatRelativeTime(incident.created_at)} · activo hasta{" "}
+        {formatIncidentExpiry(incident.expires_at)}
+      </div>
+      {incident.description ? <div>{incident.description}</div> : null}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={submitConfirm}
+          disabled={submitting || isBusy}
+          className="rounded-lg border border-emerald-300 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 disabled:opacity-60"
+        >
+          {submitting ? "Enviando..." : "Confirmar"}
+        </button>
+        {isAdminMode ? (
+          <button
+            type="button"
+            onClick={submitResolve}
+            disabled={submitting || isBusy}
+            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 disabled:opacity-60"
+          >
+            Marcar resuelto
+          </button>
+        ) : null}
+      </div>
+      {feedback ? (
+        <div className="rounded-lg bg-slate-100 px-2 py-1.5 text-[11px] text-slate-700">
+          {feedback}
         </div>
       ) : null}
     </div>
@@ -952,16 +1217,42 @@ function MapFocusController({
   return null;
 }
 
+function IncidentDraftController({
+  enabled,
+  onPickPoint,
+}: {
+  enabled: boolean;
+  onPickPoint: (point: { lat: number; lng: number }) => void;
+}) {
+  useMapEvents({
+    click(event) {
+      if (!enabled) return;
+      onPickPoint({
+        lat: event.latlng.lat,
+        lng: event.latlng.lng,
+      });
+    },
+  });
+
+  return null;
+}
+
 export default function StationsMap({
   adminActionKey = null,
+  incidentReportMode = false,
+  incidents = [],
   isAdminMode = false,
+  onCancelIncidentReport,
   onAdminDeleteService,
   onAdminDeleteStation,
   onAdminOpenEditor,
   onAdminToggleServicePublication,
   onAdminToggleServiceVerification,
   onAdminToggleStationVerification,
+  onConfirmTrafficIncident,
+  onCreateTrafficIncident,
   onQuickReportStation,
+  onResolveTrafficIncident,
   onSubmitPlaceReport,
   onSubmitStationReview,
   onSubmitServiceReview,
@@ -972,6 +1263,17 @@ export default function StationsMap({
   onRequestReportStation,
   userLocation,
 }: StationsMapProps) {
+  const [draftIncidentPoint, setDraftIncidentPoint] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!incidentReportMode) {
+      setDraftIncidentPoint(null);
+    }
+  }, [incidentReportMode]);
+
   const defaultCenter: [number, number] = userLocation
     ? [userLocation.lat, userLocation.lng]
     : [-16.5, -68.15];
@@ -989,6 +1291,12 @@ export default function StationsMap({
       />
 
       <MapFocusController selectedKey={selectedKey} stations={stations} services={services} />
+      <IncidentDraftController
+        enabled={incidentReportMode}
+        onPickPoint={(point) => {
+          setDraftIncidentPoint(point);
+        }}
+      />
 
       {userLocation && (
         <CircleMarker
@@ -999,6 +1307,78 @@ export default function StationsMap({
           <Popup>Tu ubicacion</Popup>
         </CircleMarker>
       )}
+
+      {incidents
+        .filter(
+          (incident) =>
+            incident.status === "active" &&
+            typeof incident.latitude === "number" &&
+            typeof incident.longitude === "number"
+        )
+        .map((incident) => {
+          const color = getTrafficIncidentColor(incident.incident_type);
+          const isBusy = adminActionKey === `incident-${incident.id}`;
+
+          return (
+            <Fragment key={`incident-${incident.id}`}>
+              <Circle
+                center={[incident.latitude, incident.longitude]}
+                radius={incident.radius_meters}
+                pathOptions={{ color, fillColor: color, fillOpacity: 0.08, weight: 1 }}
+              />
+              <CircleMarker
+                center={[incident.latitude, incident.longitude]}
+                radius={9}
+                pathOptions={{ color, fillColor: color, fillOpacity: 0.95, weight: 2 }}
+              >
+                <Popup keepInView maxWidth={280}>
+                  <TrafficIncidentPopupCard
+                    incident={incident}
+                    isAdminMode={isAdminMode}
+                    isBusy={isBusy}
+                    onConfirm={onConfirmTrafficIncident}
+                    onResolve={onResolveTrafficIncident}
+                  />
+                </Popup>
+              </CircleMarker>
+            </Fragment>
+          );
+        })}
+
+      {draftIncidentPoint ? (
+        <Fragment>
+          <CircleMarker
+            center={[draftIncidentPoint.lat, draftIncidentPoint.lng]}
+            radius={10}
+            pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.95, weight: 2 }}
+          />
+          <Popup
+            position={[draftIncidentPoint.lat, draftIncidentPoint.lng]}
+            keepInView
+            autoClose={false}
+            closeOnClick={false}
+            closeButton={false}
+            maxWidth={290}
+          >
+            <IncidentDraftPopup
+              latitude={draftIncidentPoint.lat}
+              longitude={draftIncidentPoint.lng}
+              onCancel={() => {
+                setDraftIncidentPoint(null);
+                onCancelIncidentReport?.();
+              }}
+              onSubmit={async (input) => {
+                const result = await onCreateTrafficIncident?.(input);
+                if (result?.ok) {
+                  setDraftIncidentPoint(null);
+                  onCancelIncidentReport?.();
+                }
+                return result ?? { ok: false, message: "No se pudo registrar el incidente." };
+              }}
+            />
+          </Popup>
+        </Fragment>
+      ) : null}
 
       {services
         .filter(

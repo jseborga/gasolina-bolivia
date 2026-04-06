@@ -14,7 +14,7 @@ import {
   SUPPORT_SERVICE_SELECT,
   withSupportServiceDefaults,
 } from "@/lib/support-services-compat";
-import { Report, Station, StationWithLatest, SupportService } from "@/lib/types";
+import { Report, Station, StationWithLatest, SupportService, TrafficIncident } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +41,14 @@ export default async function HomePage() {
     const [{ data: stationsData, error: stationsError }, { data: reportsData, error: reportsError }] =
       await Promise.all([stationsQuery, reportsQuery]);
 
+    const incidentsQuery = supabase
+      .from("traffic_incidents")
+      .select("*")
+      .eq("status", "active")
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(150);
+
     const initialServicesQuery = supabase
       .from("support_services")
       .select(SUPPORT_SERVICE_SELECT)
@@ -51,12 +59,21 @@ export default async function HomePage() {
       initialServicesQuery.eq("is_active", true).eq("is_published", true);
     }
 
-    const initialServicesResult = await initialServicesQuery;
+    const [initialServicesResult, incidentsResult] = await Promise.all([
+      initialServicesQuery,
+      incidentsQuery,
+    ]);
     let servicesData: SupportService[] = [];
     let servicesError = initialServicesResult.error;
+    let incidentsData: TrafficIncident[] = [];
+    let incidentsError = incidentsResult.error;
 
     if (!servicesError && initialServicesResult.data) {
       servicesData = initialServicesResult.data as unknown as SupportService[];
+    }
+
+    if (!incidentsError && incidentsResult.data) {
+      incidentsData = incidentsResult.data as TrafficIncident[];
     }
 
     if (isMissingColumnError(servicesError, "support_services", SUPPORT_SERVICE_OPTIONAL_COLUMNS)) {
@@ -79,13 +96,22 @@ export default async function HomePage() {
     }
 
     const servicesTableMissing = isMissingTableError(servicesError, "support_services");
+    const incidentsTableMissing = isMissingTableError(incidentsError, "traffic_incidents");
 
-    if (stationsError || reportsError || (servicesError && !servicesTableMissing)) {
+    if (
+      stationsError ||
+      reportsError ||
+      (servicesError && !servicesTableMissing) ||
+      (incidentsError && !incidentsTableMissing)
+    ) {
       return (
         <main className="mx-auto max-w-5xl px-6 py-10">
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
             Error al leer Supabase.{" "}
-            {stationsError?.message || reportsError?.message || servicesError?.message}
+            {stationsError?.message ||
+              reportsError?.message ||
+              servicesError?.message ||
+              incidentsError?.message}
           </div>
         </main>
       );
@@ -94,6 +120,7 @@ export default async function HomePage() {
     const stations = (stationsData ?? []) as Station[];
     const reports = (reportsData ?? []) as Report[];
     const services = (servicesTableMissing ? [] : servicesData ?? []) as SupportService[];
+    const incidents = (incidentsTableMissing ? [] : incidentsData ?? []) as TrafficIncident[];
 
     const latestByStation = new Map<number, Report>();
     for (const report of reports) {
@@ -131,9 +158,16 @@ export default async function HomePage() {
             {getMissingSupportServicesMessage()}
           </div>
         ) : null}
+        {incidentsTableMissing ? (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Falta la tabla <code>traffic_incidents</code>. Ejecuta la migracion
+            <code> supabase/009_traffic_incidents.sql</code>.
+          </div>
+        ) : null}
 
         <Dashboard
           adminSession={adminSession ? { email: adminSession.email } : null}
+          initialTrafficIncidents={incidents}
           initialStations={stationsWithLatest}
           initialServices={services}
           reportCount={reports.length}

@@ -22,6 +22,7 @@ import type {
   SupportServiceCategory,
   SupportService,
   SupportServiceWithDistance,
+  TrafficIncident,
 } from "@/lib/types";
 import { haversineKm } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ type DashboardProps = {
   adminSession?: { email: string } | null;
   initialStations: StationWithLatest[];
   initialServices: SupportService[];
+  initialTrafficIncidents: TrafficIncident[];
   reportCount?: number;
 };
 
@@ -232,6 +234,7 @@ function buildServiceAdminPayload(
 
 export function Dashboard({
   adminSession = null,
+  initialTrafficIncidents,
   initialStations,
   initialServices,
   reportCount = 0,
@@ -239,6 +242,8 @@ export function Dashboard({
   const isAdminMode = Boolean(adminSession);
   const [stations, setStations] = useState<StationWithLatest[]>(initialStations);
   const [services, setServices] = useState<SupportService[]>(initialServices);
+  const [trafficIncidents, setTrafficIncidents] =
+    useState<TrafficIncident[]>(initialTrafficIncidents);
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
@@ -247,6 +252,7 @@ export function Dashboard({
     "idle" | "loading" | "granted" | "denied" | "error"
   >("idle");
   const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
+  const [incidentReportMode, setIncidentReportMode] = useState(false);
   const [didAutoPickNearest, setDidAutoPickNearest] = useState(false);
   const [requestedInitialLocation, setRequestedInitialLocation] = useState(false);
   const [stationAdminDraft, setStationAdminDraft] = useState<StationMapAdminDraft | null>(null);
@@ -267,15 +273,20 @@ export function Dashboard({
   }, [initialServices]);
 
   useEffect(() => {
+    setTrafficIncidents(initialTrafficIncidents);
+  }, [initialTrafficIncidents]);
+
+  useEffect(() => {
     trackAppEvent({
       eventType: "page_view_home",
       targetType: "system",
       metadata: {
+        initial_incidents: initialTrafficIncidents.length,
         initial_services: initialServices.length,
         initial_stations: initialStations.length,
       },
     });
-  }, [initialServices.length, initialStations.length]);
+  }, [initialServices.length, initialStations.length, initialTrafficIncidents.length]);
 
   const stationsWithDistance = useMemo(() => {
     return stations.map((station) => {
@@ -958,6 +969,129 @@ export function Dashboard({
     }
   };
 
+  const handleCreateTrafficIncident = async (input: {
+    description?: string;
+    incidentType:
+      | "control_vial"
+      | "corte_via"
+      | "marcha"
+      | "accidente"
+      | "derrumbe"
+      | "otro";
+    latitude: number;
+    longitude: number;
+  }) => {
+    try {
+      const visitorId = ensureVisitorId();
+      const res = await fetch("/api/traffic-incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: input.description,
+          incidentType: input.incidentType,
+          latitude: input.latitude,
+          longitude: input.longitude,
+          visitorId,
+        }),
+      });
+
+      const json = (await res.json()) as { error?: string; incident?: TrafficIncident };
+      if (!res.ok || !json.incident) {
+        throw new Error(json.error || "No se pudo registrar el incidente.");
+      }
+
+      setTrafficIncidents((current) => [json.incident as TrafficIncident, ...current]);
+
+      return { incident: json.incident as TrafficIncident, message: "Incidente enviado.", ok: true };
+    } catch (error) {
+      return {
+        message:
+          error instanceof Error ? error.message : "No se pudo registrar el incidente vial.",
+        ok: false,
+      };
+    }
+  };
+
+  const handleConfirmTrafficIncident = async (incidentId: number) => {
+    try {
+      const visitorId = ensureVisitorId();
+      const res = await fetch(`/api/traffic-incidents/${incidentId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          latitude: userLocation?.lat ?? null,
+          longitude: userLocation?.lng ?? null,
+          visitorId,
+        }),
+      });
+
+      const json = (await res.json()) as {
+        alreadyConfirmed?: boolean;
+        confirmationCount?: number;
+        error?: string;
+      };
+
+      if (!res.ok) {
+        throw new Error(json.error || "No se pudo confirmar el incidente.");
+      }
+
+      setTrafficIncidents((current) =>
+        current.map((incident) =>
+          incident.id === incidentId
+            ? {
+                ...incident,
+                confirmation_count: json.confirmationCount ?? incident.confirmation_count,
+              }
+            : incident
+        )
+      );
+
+      return {
+        confirmationCount: json.confirmationCount,
+        message: json.alreadyConfirmed ? "Ya habias confirmado este incidente." : "Incidente confirmado.",
+        ok: true,
+      };
+    } catch (error) {
+      return {
+        message:
+          error instanceof Error ? error.message : "No se pudo confirmar el incidente vial.",
+        ok: false,
+      };
+    }
+  };
+
+  const handleResolveTrafficIncident = async (incidentId: number) => {
+    if (!isAdminMode) {
+      return { ok: false, message: "Solo el admin puede cerrar incidentes." };
+    }
+
+    setAdminActionKey(`incident-${incidentId}`);
+    setAdminFeedback(null);
+
+    try {
+      const res = await fetch(`/api/admin/traffic-incidents/${incidentId}/resolve`, {
+        method: "POST",
+      });
+
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "No se pudo cerrar el incidente.");
+      }
+
+      setTrafficIncidents((current) => current.filter((incident) => incident.id !== incidentId));
+      setAdminFeedback({ kind: "success", message: "Incidente marcado como resuelto." });
+
+      return { ok: true, message: "Incidente resuelto." };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo cerrar el incidente vial.";
+      setAdminFeedback({ kind: "error", message });
+      return { ok: false, message };
+    } finally {
+      setAdminActionKey(null);
+    }
+  };
+
   const handleSubmitServiceReview = async (input: {
     comment?: string;
     score: number;
@@ -1163,6 +1297,19 @@ export function Dashboard({
       ) : null}
 
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="pointer-events-none absolute left-3 top-3 z-[500]">
+          <button
+            type="button"
+            onClick={() => setIncidentReportMode((current) => !current)}
+            className={`pointer-events-auto rounded-xl px-3 py-2 text-xs font-medium shadow-sm ring-1 backdrop-blur ${
+              incidentReportMode
+                ? "bg-amber-500 text-white ring-amber-500"
+                : "bg-white/95 text-slate-800 ring-slate-200 hover:bg-white"
+            }`}
+          >
+            {incidentReportMode ? "Cancelar incidente" : "Reportar incidente"}
+          </button>
+        </div>
         {!isAdminMode ? (
           <div className="pointer-events-none absolute right-3 top-3 z-[500]">
             <button
@@ -1178,11 +1325,24 @@ export function Dashboard({
             </button>
           </div>
         ) : null}
+        {incidentReportMode ? (
+          <div className="pointer-events-none absolute inset-x-0 top-16 z-[500] flex justify-center px-3">
+            <div className="rounded-xl bg-slate-900/92 px-3 py-2 text-center text-[11px] font-medium text-white shadow-lg">
+              Toca el mapa para marcar el incidente y pedir confirmaciones de otros usuarios.
+            </div>
+          </div>
+        ) : null}
         <div className={isAdminMode ? "h-[58vh] min-h-[420px] sm:h-[70vh]" : "h-[72vh] min-h-[480px]"}>
           <StationsMap
             adminActionKey={adminActionKey}
+            incidentReportMode={incidentReportMode}
+            incidents={trafficIncidents}
             isAdminMode={isAdminMode}
+            onCancelIncidentReport={() => setIncidentReportMode(false)}
+            onConfirmTrafficIncident={handleConfirmTrafficIncident}
+            onCreateTrafficIncident={handleCreateTrafficIncident}
             onQuickReportStation={handleQuickReport}
+            onResolveTrafficIncident={handleResolveTrafficIncident}
             onSubmitPlaceReport={handleSubmitPlaceReport}
             onSubmitStationReview={handleSubmitStationReview}
             onSubmitServiceReview={handleSubmitServiceReview}

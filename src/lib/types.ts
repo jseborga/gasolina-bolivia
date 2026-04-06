@@ -7,6 +7,16 @@ export type SupportServiceCategory =
   | "servicio_mecanico"
   | "aditivos";
 
+export type TrafficIncidentType =
+  | "control_vial"
+  | "corte_via"
+  | "marcha"
+  | "accidente"
+  | "derrumbe"
+  | "otro";
+
+export type TrafficIncidentStatus = "active" | "resolved" | "expired";
+
 export type UserLocation = {
   lat: number;
   lng: number;
@@ -139,4 +149,19 @@ export type PlaceReport = {
   latitude_bucket: number | null;
   longitude_bucket: number | null;
   created_at: string;
+};
+
+export type TrafficIncident = {
+  id: number;
+  incident_type: TrafficIncidentType;
+  description: string | null;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  confirmation_count: number;
+  status: TrafficIncidentStatus;
+  visitor_id: string | null;
+  created_at: string;
+  expires_at: string;
+  resolved_at: string | null;
 };
