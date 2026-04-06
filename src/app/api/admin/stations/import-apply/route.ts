@@ -8,6 +8,37 @@ function normalizeImportName(item: StationImportApplyItem) {
   return item.incomingName.trim() || item.incomingAddress.trim() || item.raw.trim();
 }
 
+function inferCityFromAddress(address: string) {
+  const parts = address
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => !/^bolivia$/i.test(value));
+
+  if (parts.length === 0) return null;
+
+  const normalizedParts = parts.map((value) => value.toLowerCase());
+  const departmentNames = new Set([
+    'la paz',
+    'cochabamba',
+    'santa cruz',
+    'oruro',
+    'potosi',
+    'chuquisaca',
+    'tarija',
+    'beni',
+    'pando',
+  ]);
+
+  for (let index = normalizedParts.length - 1; index >= 0; index -= 1) {
+    if (!departmentNames.has(normalizedParts[index])) {
+      return parts[index];
+    }
+  }
+
+  return parts[parts.length - 1] ?? null;
+}
+
 export async function POST(request: NextRequest) {
   const session = await getOptionalAdminSession();
   if (!session) {
@@ -61,7 +92,7 @@ export async function POST(request: NextRequest) {
           latitude: item.incomingLatitude,
           longitude: item.incomingLongitude,
           source_url: item.sourceUrl || undefined,
-          city: 'La Paz',
+          city: inferCityFromAddress(item.incomingAddress) || 'La Paz',
           is_verified: false,
           is_active: true,
           fuel_especial: true,
@@ -97,7 +128,10 @@ export async function POST(request: NextRequest) {
       const payload = normalizeStationAdminInput({
         name: normalizedName || existing.name,
         address: item.incomingAddress || existing.address || undefined,
-        city: existing.city || 'La Paz',
+        city:
+          existing.city ||
+          inferCityFromAddress(item.incomingAddress) ||
+          'La Paz',
         fuel_diesel: existing.fuel_diesel,
         fuel_especial: existing.fuel_especial,
         fuel_gnv: existing.fuel_gnv,

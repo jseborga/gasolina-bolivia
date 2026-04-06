@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p 3000",
+    "convert:overpass": "node scripts/convert-overpass-fuel-to-import.mjs",
     "migrate:deploy": "node scripts/run-deploy-migrations.mjs",
     "start:deploy": "npm run migrate:deploy && next start -p 3000"
   },
