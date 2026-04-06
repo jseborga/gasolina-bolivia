@@ -4,10 +4,11 @@ import {
   sanitizeAdminNextPath,
   setAdminSessionCookie,
 } from '@/lib/admin-auth';
+import { getRequestBaseUrl } from '@/lib/app-url';
 import { getServerSupabase } from '@/lib/supabase-server';
 
 function buildErrorRedirect(request: NextRequest, nextPath: string, message: string) {
-  const url = new URL('/admin/login', request.url);
+  const url = new URL('/admin/login', getRequestBaseUrl(request));
   url.searchParams.set('error', message);
   url.searchParams.set('next', nextPath);
   return NextResponse.redirect(url, 303);
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = NextResponse.redirect(new URL(nextPath, request.url), 303);
+    const response = NextResponse.redirect(new URL(nextPath, getRequestBaseUrl(request)), 303);
     setAdminSessionCookie(response, {
       email: sessionEmail,
       userId: data.user.id,
