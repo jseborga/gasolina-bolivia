@@ -1445,6 +1445,7 @@ export default function StationsMap({
     <MapContainer
       center={defaultCenter}
       zoom={12}
+      attributionControl={false}
       zoomControl={false}
       scrollWheelZoom
       style={{ height: "100%", width: "100%" }}

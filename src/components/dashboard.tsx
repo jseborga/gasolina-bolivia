@@ -1841,6 +1841,25 @@ export function Dashboard({
           />
         </div>
       </section>
+      <div className="px-1 text-center text-[11px] text-slate-400">
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-slate-500 hover:text-slate-700"
+        >
+          OpenStreetMap
+        </a>{" "}
+        ·{" "}
+        <a
+          href="https://leafletjs.com/"
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-slate-500 hover:text-slate-700"
+        >
+          Leaflet
+        </a>
+      </div>
 
       {isAdminMode ? (
       <section
