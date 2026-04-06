@@ -787,7 +787,7 @@ export async function buildOSMImportPreview(
   return {
     fetchedCount: elements.length,
     items: limitedItems,
-    note: buildServiceNote(request.serviceCategory),
+    note: buildServiceNote(request.serviceCategory) ?? null,
     query,
     totalEntries: normalized.length,
     truncated: normalized.length > limitedItems.length,

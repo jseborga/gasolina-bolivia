@@ -1,6 +1,6 @@
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
-COPY package.json ./
+COPY package.json package-lock.json ./
 RUN npm install --no-audit --no-fund --legacy-peer-deps
 
 FROM node:20-bookworm-slim AS builder
