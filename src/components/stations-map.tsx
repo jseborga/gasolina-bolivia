@@ -35,6 +35,7 @@ type StationsMapProps = {
   isAdminMode?: boolean;
   nearbyIncidentId?: number | null;
   onCancelIncidentReport?: () => void;
+  onIncidentDraftStateChange?: (hasDraftPoint: boolean) => void;
   onAdminDeleteService?: (serviceId: number) => void;
   onAdminDeleteStation?: (stationId: number) => void;
   onAdminOpenEditor?: (key: string) => void;
@@ -584,7 +585,7 @@ function IncidentDraftPopup({
   };
 
   return (
-    <div className="w-[72vw] min-w-[210px] max-w-[250px] space-y-3 text-xs text-slate-800 sm:w-[250px]">
+    <div className="max-h-[52vh] w-[78vw] min-w-[220px] max-w-[280px] space-y-3 overflow-y-auto pr-1 text-xs text-slate-800 sm:max-h-[420px] sm:w-[280px]">
       <div>
         <div className="text-sm font-semibold text-slate-900">Nuevo incidente</div>
         <div className="text-[11px] text-slate-500">
@@ -1407,6 +1408,7 @@ export default function StationsMap({
   isAdminMode = false,
   nearbyIncidentId = null,
   onCancelIncidentReport,
+  onIncidentDraftStateChange,
   onAdminDeleteService,
   onAdminDeleteStation,
   onAdminOpenEditor,
@@ -1438,6 +1440,10 @@ export default function StationsMap({
       setDraftIncidentPoint(null);
     }
   }, [incidentReportMode]);
+
+  useEffect(() => {
+    onIncidentDraftStateChange?.(Boolean(draftIncidentPoint));
+  }, [draftIncidentPoint, onIncidentDraftStateChange]);
 
   const defaultCenter: [number, number] = [-16.5, -68.15];
 
@@ -1530,7 +1536,9 @@ export default function StationsMap({
             autoClose={false}
             closeOnClick={false}
             closeButton={false}
-            maxWidth={290}
+            autoPanPadding={[18, 120]}
+            maxWidth={320}
+            offset={[0, -18]}
           >
             <IncidentDraftPopup
               latitude={draftIncidentPoint.lat}

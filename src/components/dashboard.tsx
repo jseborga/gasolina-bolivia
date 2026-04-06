@@ -84,7 +84,7 @@ type SearchResult =
       service: SupportServiceWithDistance;
     };
 
-type PublicMapFilter = "stations" | "servicio_mecanico" | "all" | "none";
+type PublicMapFilter = "stations" | "servicio_mecanico" | "none";
 type IncidentMapFilter =
   | "all"
   | "nearby"
@@ -311,6 +311,7 @@ export function Dashboard({
   const [showIncidentFilters, setShowIncidentFilters] = useState(false);
   const [showPublishMenu, setShowPublishMenu] = useState(false);
   const [incidentReportMode, setIncidentReportMode] = useState(false);
+  const [hasIncidentDraftPoint, setHasIncidentDraftPoint] = useState(false);
   const [stationAdminDraft, setStationAdminDraft] = useState<StationMapAdminDraft | null>(null);
   const [serviceAdminDraft, setServiceAdminDraft] = useState<ServiceMapAdminDraft | null>(null);
   const [adminActionKey, setAdminActionKey] = useState<string | null>(null);
@@ -406,10 +407,8 @@ export function Dashboard({
   const normalizedQuery = normalizeSearchValue(search);
 
   const results = useMemo<SearchResult[]>(() => {
-    const showStations =
-      isAdminMode || publicMapFilter === "stations" || publicMapFilter === "all";
-    const showServices =
-      isAdminMode || publicMapFilter === "servicio_mecanico" || publicMapFilter === "all";
+    const showStations = isAdminMode || publicMapFilter === "stations";
+    const showServices = isAdminMode || publicMapFilter === "servicio_mecanico";
 
     const stationResults: SearchResult[] = showStations
       ? stationsWithDistance
@@ -516,6 +515,12 @@ export function Dashboard({
   useEffect(() => {
     setShowReportForm(false);
   }, [selectedKey]);
+
+  useEffect(() => {
+    if (!incidentReportMode && hasIncidentDraftPoint) {
+      setHasIncidentDraftPoint(false);
+    }
+  }, [hasIncidentDraftPoint, incidentReportMode]);
 
   const selectedResult = useMemo(
     () => results.find((item) => item.key === selectedKey) ?? null,
@@ -1413,17 +1418,6 @@ export function Dashboard({
             </button>
             <button
               type="button"
-              onClick={() => handleTogglePublicFilter("all")}
-              className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                publicMapFilter === "all"
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "bg-white text-slate-700 ring-1 ring-slate-200"
-              }`}
-            >
-              Todo
-            </button>
-            <button
-              type="button"
               onClick={() => {
                 setShowPublishMenu(false);
                 setShowIncidentFilters((current) => !current);
@@ -1791,10 +1785,15 @@ export function Dashboard({
             </div>
           </div>
         ) : null}
-        {incidentReportMode ? (
+        {incidentReportMode && !hasIncidentDraftPoint ? (
           <div className="pointer-events-none absolute inset-x-0 top-16 z-[500] flex justify-center px-3">
-            <div className="rounded-xl bg-slate-900/92 px-3 py-2 text-center text-[11px] font-medium text-white shadow-lg">
-              Toca el mapa para marcar el incidente y pedir confirmaciones de otros usuarios.
+            <div className="rounded-2xl border border-amber-300 bg-amber-400/96 px-4 py-3 text-center text-slate-950 shadow-xl backdrop-blur">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em]">
+                Reportar incidente
+              </div>
+              <div className="mt-1 text-xs font-semibold">
+                Coloca el punto exacto del incidente en el mapa.
+              </div>
             </div>
           </div>
         ) : null}
@@ -1818,6 +1817,7 @@ export function Dashboard({
             isAdminMode={isAdminMode}
             nearbyIncidentId={nearbyTrafficIncident?.incident.id ?? null}
             onCancelIncidentReport={() => setIncidentReportMode(false)}
+            onIncidentDraftStateChange={setHasIncidentDraftPoint}
             onConfirmTrafficIncident={handleConfirmTrafficIncident}
             onCreateTrafficIncident={handleCreateTrafficIncident}
             onQuickReportStation={handleQuickReport}
