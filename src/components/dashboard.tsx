@@ -297,6 +297,7 @@ export function Dashboard({
   const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
   const [incidentMapFilter, setIncidentMapFilter] = useState<IncidentMapFilter>("all");
   const [showIncidentFilters, setShowIncidentFilters] = useState(false);
+  const [showPublishMenu, setShowPublishMenu] = useState(false);
   const [incidentReportMode, setIncidentReportMode] = useState(false);
   const [stationAdminDraft, setStationAdminDraft] = useState<StationMapAdminDraft | null>(null);
   const [serviceAdminDraft, setServiceAdminDraft] = useState<ServiceMapAdminDraft | null>(null);
@@ -1598,24 +1599,28 @@ export function Dashboard({
               <button
                 type="button"
                 onClick={() => setPublicMapFilter("stations")}
+                aria-label="Estaciones de servicio"
+                title="Estaciones de servicio"
                 className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
                   publicMapFilter === "stations"
                     ? "bg-slate-950 text-white shadow-sm"
                     : "bg-white text-slate-700 ring-1 ring-slate-200"
                 }`}
               >
-                Estaciones
+                ⛽
               </button>
               <button
                 type="button"
                 onClick={() => setPublicMapFilter("servicio_mecanico")}
+                aria-label="Auxilio mecanico"
+                title="Auxilio mecanico"
                 className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${
                   publicMapFilter === "servicio_mecanico"
                     ? "bg-slate-950 text-white shadow-sm"
                     : "bg-white text-slate-700 ring-1 ring-slate-200"
                 }`}
               >
-                Auxilio
+                🔧
               </button>
               <button
                 type="button"
@@ -1630,10 +1635,23 @@ export function Dashboard({
               </button>
               <button
                 type="button"
-                onClick={() => setShowIncidentFilters((current) => !current)}
+                onClick={() => {
+                  setShowPublishMenu(false);
+                  setShowIncidentFilters((current) => !current);
+                }}
                 className="ml-auto rounded-full bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-200"
               >
                 Incidentes
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIncidentFilters(false);
+                  setShowPublishMenu((current) => !current);
+                }}
+                className="rounded-full bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white"
+              >
+                Publicar
               </button>
             </div>
             {showIncidentFilters ? (
@@ -1688,39 +1706,64 @@ export function Dashboard({
                 )}
               </div>
             ) : null}
+            {showPublishMenu ? (
+              <div className="mt-3 grid gap-2 rounded-[1.4rem] bg-slate-50 p-3 ring-1 ring-slate-200">
+                <a
+                  href="/sumate?category=estacion"
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "open_vendor_join",
+                      targetType: "vendor_request",
+                      metadata: { category: "estacion", source: "home_bottom_publish" },
+                    })
+                  }
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+                >
+                  Publicar surtidor
+                </a>
+                <a
+                  href="/sumate?category=taller_mecanico"
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "open_vendor_join",
+                      targetType: "vendor_request",
+                      metadata: { category: "taller_mecanico", source: "home_bottom_publish" },
+                    })
+                  }
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+                >
+                  Publicar taller mecanico
+                </a>
+                <a
+                  href="/sumate?category=grua"
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "open_vendor_join",
+                      targetType: "vendor_request",
+                      metadata: { category: "grua", source: "home_bottom_publish" },
+                    })
+                  }
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+                >
+                  Publicar grua
+                </a>
+                <a
+                  href="/sumate?category=aditivos"
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "open_vendor_join",
+                      targetType: "vendor_request",
+                      metadata: { category: "aditivos", source: "home_bottom_publish" },
+                    })
+                  }
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+                >
+                  Publicar aditivos
+                </a>
+              </div>
+            ) : null}
           </div>
         </div>
-      ) : null}
-
-      {!isAdminMode ? (
-        <section className="rounded-[2rem] border border-white/70 bg-white/80 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                Publicar
-              </p>
-              <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">
-                Quiero publicar en SurtiMapa
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Surtidor, taller, grua o aditivos. Todo entra a revision.
-              </p>
-            </div>
-            <a
-              href="/sumate"
-              onClick={() =>
-                trackAppEvent({
-                  eventType: "open_vendor_join",
-                  targetType: "vendor_request",
-                  metadata: { source: "home_minimal_cta" },
-                })
-              }
-              className="rounded-full bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-            >
-              Quiero publicar
-            </a>
-          </div>
-        </section>
       ) : null}
 
       {isAdminMode ? (
