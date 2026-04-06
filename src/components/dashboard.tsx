@@ -152,6 +152,56 @@ function getIncidentTypeLabel(
   }
 }
 
+function getIncidentAlertMeta(
+  type: "control_vial" | "corte_via" | "marcha" | "accidente" | "derrumbe" | "otro"
+) {
+  switch (type) {
+    case "control_vial":
+      return {
+        icon: "👮",
+        badgeClass: "bg-sky-600 text-white",
+        cardClass: "border-sky-300 bg-sky-50/95 text-sky-900",
+        title: "Control policial cerca",
+      };
+    case "corte_via":
+      return {
+        icon: "⛔",
+        badgeClass: "bg-orange-500 text-white",
+        cardClass: "border-orange-300 bg-orange-50/95 text-orange-900",
+        title: "Corte de via cerca",
+      };
+    case "marcha":
+      return {
+        icon: "📣",
+        badgeClass: "bg-fuchsia-600 text-white",
+        cardClass: "border-fuchsia-300 bg-fuchsia-50/95 text-fuchsia-900",
+        title: "Marcha cerca",
+      };
+    case "accidente":
+      return {
+        icon: "⚠️",
+        badgeClass: "bg-rose-600 text-white",
+        cardClass: "border-rose-300 bg-rose-50/95 text-rose-900",
+        title: "Accidente cerca",
+      };
+    case "derrumbe":
+      return {
+        icon: "🪨",
+        badgeClass: "bg-amber-700 text-white",
+        cardClass: "border-amber-300 bg-amber-50/95 text-amber-900",
+        title: "Derrumbe cerca",
+      };
+    case "otro":
+    default:
+      return {
+        icon: "🚨",
+        badgeClass: "bg-slate-700 text-white",
+        cardClass: "border-slate-300 bg-white/95 text-slate-900",
+        title: "Incidente cerca",
+      };
+  }
+}
+
 function getStatusPillClass(status?: string | null) {
   switch (status) {
     case "si_hay":
@@ -1800,12 +1850,35 @@ export function Dashboard({
         {!incidentReportMode && nearbyTrafficIncident ? (
           <div
             className={`pointer-events-none absolute inset-x-0 z-[500] flex justify-center px-3 ${
-              isAdminMode ? "bottom-16" : "bottom-32 sm:bottom-16"
+              isAdminMode ? "bottom-16" : "bottom-16 sm:bottom-20"
             }`}
           >
-            <div className="animate-pulse rounded-2xl border border-rose-300 bg-rose-50/95 px-4 py-3 text-center text-xs font-medium text-rose-800 shadow-lg backdrop-blur">
-              Alerta cerca: {getIncidentTypeLabel(nearbyTrafficIncident.incident.incident_type)} a{" "}
-              {formatDistance(nearbyTrafficIncident.distanceKm)}
+            <div
+              className={`animate-pulse rounded-2xl border px-4 py-3 shadow-lg backdrop-blur ${getIncidentAlertMeta(
+                nearbyTrafficIncident.incident.incident_type
+              ).cardClass}`}
+            >
+              <div className="flex items-center gap-3 text-left">
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base ${getIncidentAlertMeta(
+                    nearbyTrafficIncident.incident.incident_type
+                  ).badgeClass}`}
+                >
+                  {getIncidentAlertMeta(nearbyTrafficIncident.incident.incident_type).icon}
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em]">
+                    Warning
+                  </div>
+                  <div className="text-xs font-semibold">
+                    {getIncidentAlertMeta(nearbyTrafficIncident.incident.incident_type).title}
+                  </div>
+                  <div className="text-[11px] opacity-80">
+                    {getIncidentTypeLabel(nearbyTrafficIncident.incident.incident_type)} a{" "}
+                    {formatDistance(nearbyTrafficIncident.distanceKm)}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         ) : null}

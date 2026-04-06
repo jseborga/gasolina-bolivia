@@ -643,7 +643,15 @@ function IncidentDraftPopup({
           disabled={submitting}
           className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white disabled:opacity-60"
         >
-          {submitting ? "Enviando..." : "Publicar incidente"}
+          {submitting ? "Enviando..." : "✓ Publicar"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700 disabled:opacity-60"
+        >
+          ✕ Cancelar
         </button>
       </div>
 
@@ -1441,98 +1449,172 @@ export default function StationsMap({
   const defaultCenter: [number, number] = [-16.5, -68.15];
 
   return (
-    <MapContainer
-      center={defaultCenter}
-      zoom={12}
-      attributionControl={false}
-      zoomControl={false}
-      scrollWheelZoom
-      style={{ height: "100%", width: "100%" }}
-    >
-      <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <div className="relative h-full w-full">
+      <MapContainer
+        center={defaultCenter}
+        zoom={12}
+        attributionControl={false}
+        zoomControl={false}
+        scrollWheelZoom
+        style={{ height: "100%", width: "100%" }}
+      >
+        <TileLayer
+          attribution='&copy; OpenStreetMap contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
 
-      <MapFocusController selectedKey={selectedKey} stations={stations} services={services} />
-      <UserLocationController focusKey={userLocationFocusKey} userLocation={userLocation} />
-      <IncidentDraftController
-        enabled={incidentReportMode}
-        onPickPoint={(point) => {
-          setDraftIncidentPoint(point);
-        }}
-      />
+        <MapFocusController selectedKey={selectedKey} stations={stations} services={services} />
+        <UserLocationController focusKey={userLocationFocusKey} userLocation={userLocation} />
+        <IncidentDraftController
+          enabled={incidentReportMode}
+          onPickPoint={(point) => {
+            setDraftIncidentPoint(point);
+          }}
+        />
 
-      {userLocation && (
-        <CircleMarker
-          center={[userLocation.lat, userLocation.lng]}
-          radius={8}
-          pathOptions={{ color: "#2563eb", fillColor: "#2563eb", fillOpacity: 0.9 }}
-        >
-          <Popup>Tu ubicacion</Popup>
-        </CircleMarker>
-      )}
+        {userLocation && (
+          <CircleMarker
+            center={[userLocation.lat, userLocation.lng]}
+            radius={8}
+            pathOptions={{ color: "#2563eb", fillColor: "#2563eb", fillOpacity: 0.9 }}
+          >
+            <Popup>Tu ubicacion</Popup>
+          </CircleMarker>
+        )}
 
-      {incidents
-        .filter(
-          (incident) =>
-            incident.status === "active" &&
-            typeof incident.latitude === "number" &&
-            typeof incident.longitude === "number"
-        )
-        .map((incident) => {
-          const color = getTrafficIncidentColor(incident.incident_type);
-          const isBusy = adminActionKey === `incident-${incident.id}`;
-          const isNearby = nearbyIncidentId === incident.id;
+        {incidents
+          .filter(
+            (incident) =>
+              incident.status === "active" &&
+              typeof incident.latitude === "number" &&
+              typeof incident.longitude === "number"
+          )
+          .map((incident) => {
+            const color = getTrafficIncidentColor(incident.incident_type);
+            const isBusy = adminActionKey === `incident-${incident.id}`;
+            const isNearby = nearbyIncidentId === incident.id;
 
-          return (
-            <Fragment key={`incident-${incident.id}`}>
-              <Circle
-                center={[incident.latitude, incident.longitude]}
-                radius={incident.radius_meters}
-                pathOptions={{
-                  color,
-                  fillColor: color,
-                  fillOpacity: isNearby ? 0.14 : 0.08,
-                  weight: isNearby ? 2 : 1,
-                }}
-              />
-              <Marker
-                position={[incident.latitude, incident.longitude]}
-                icon={createTrafficIncidentMarkerIcon(incident.incident_type, isNearby)}
-              >
-                <Popup keepInView maxWidth={280}>
-                  <TrafficIncidentPopupCard
-                    incident={incident}
-                    isAdminMode={isAdminMode}
-                    isBusy={isBusy}
-                    isNearby={isNearby}
-                    onConfirm={onConfirmTrafficIncident}
-                    onResolve={onResolveTrafficIncident}
-                  />
-                </Popup>
-              </Marker>
-            </Fragment>
-          );
-        })}
+            return (
+              <Fragment key={`incident-${incident.id}`}>
+                <Circle
+                  center={[incident.latitude, incident.longitude]}
+                  radius={incident.radius_meters}
+                  pathOptions={{
+                    color,
+                    fillColor: color,
+                    fillOpacity: isNearby ? 0.14 : 0.08,
+                    weight: isNearby ? 2 : 1,
+                  }}
+                />
+                <Marker
+                  position={[incident.latitude, incident.longitude]}
+                  icon={createTrafficIncidentMarkerIcon(incident.incident_type, isNearby)}
+                >
+                  <Popup keepInView maxWidth={280}>
+                    <TrafficIncidentPopupCard
+                      incident={incident}
+                      isAdminMode={isAdminMode}
+                      isBusy={isBusy}
+                      isNearby={isNearby}
+                      onConfirm={onConfirmTrafficIncident}
+                      onResolve={onResolveTrafficIncident}
+                    />
+                  </Popup>
+                </Marker>
+              </Fragment>
+            );
+          })}
 
-      {draftIncidentPoint ? (
-        <Fragment>
+        {draftIncidentPoint ? (
           <CircleMarker
             center={[draftIncidentPoint.lat, draftIncidentPoint.lng]}
             radius={10}
             pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.95, weight: 2 }}
           />
-          <Popup
-            position={[draftIncidentPoint.lat, draftIncidentPoint.lng]}
-            keepInView
-            autoClose={false}
-            closeOnClick={false}
-            closeButton={false}
-            autoPanPadding={[32, 180]}
-            maxWidth={320}
-            offset={[0, -32]}
-          >
+        ) : null}
+
+        {services
+          .filter(
+            (service) =>
+              typeof service.latitude === "number" && typeof service.longitude === "number"
+          )
+          .map((service) => {
+            const key = `service-${service.id}`;
+            const phoneHref = buildTelHref(service.phone ?? service.whatsapp_number);
+            const whatsappHref = buildWhatsAppHref(service.whatsapp_number ?? service.phone);
+            const isSelected = selectedKey === key;
+            const isBusy = adminActionKey === key;
+            const isVisible = service.is_active && (service.is_published ?? true);
+
+            return (
+              <Marker
+                key={key}
+                position={[service.latitude as number, service.longitude as number]}
+                icon={createServiceMarkerIcon(service.category, isSelected, isVisible)}
+                eventHandlers={{
+                  click: () => onSelectKey(key),
+                }}
+              >
+                <Popup keepInView maxWidth={280}>
+                  <ServicePopupCard
+                    isAdminMode={isAdminMode}
+                    isBusy={isBusy}
+                    onAdminDeleteService={onAdminDeleteService}
+                    onAdminOpenEditor={onAdminOpenEditor}
+                    onAdminToggleServicePublication={onAdminToggleServicePublication}
+                    onAdminToggleServiceVerification={onAdminToggleServiceVerification}
+                    onSubmitPlaceReport={onSubmitPlaceReport}
+                    onSubmitServiceReview={onSubmitServiceReview}
+                    phoneHref={phoneHref}
+                    service={service}
+                    whatsappHref={whatsappHref}
+                  />
+                </Popup>
+              </Marker>
+            );
+          })}
+
+        {stations
+          .filter(
+            (station) =>
+              typeof station.latitude === "number" && typeof station.longitude === "number"
+          )
+          .map((station) => {
+            const key = `station-${station.id}`;
+            const isSelected = selectedKey === key;
+            const color = getStationMarkerColor(station.latestReport?.availability_status);
+            const isBusy = adminActionKey === key;
+
+            return (
+              <Marker
+                key={key}
+                position={[station.latitude as number, station.longitude as number]}
+                icon={createStationMarkerIcon(color, isSelected, station.is_active ?? true)}
+                eventHandlers={{
+                  click: () => onSelectKey(key),
+                }}
+              >
+                <Popup keepInView maxWidth={280}>
+                  <StationPopupCard
+                    isAdminMode={isAdminMode}
+                    isBusy={isBusy}
+                    onAdminDeleteStation={onAdminDeleteStation}
+                    onAdminOpenEditor={onAdminOpenEditor}
+                    onAdminToggleStationVerification={onAdminToggleStationVerification}
+                    onQuickReportStation={onQuickReportStation}
+                    onSubmitPlaceReport={onSubmitPlaceReport}
+                    onSubmitStationReview={onSubmitStationReview}
+                    onRequestReportStation={onRequestReportStation}
+                    station={station}
+                  />
+                </Popup>
+              </Marker>
+            );
+          })}
+      </MapContainer>
+      {draftIncidentPoint ? (
+        <div className="pointer-events-none absolute inset-0 z-[700] flex items-center justify-center p-4">
+          <div className="pointer-events-auto w-full max-w-sm rounded-[1.6rem] border border-white/80 bg-white/96 p-4 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur">
             <IncidentDraftPopup
               latitude={draftIncidentPoint.lat}
               longitude={draftIncidentPoint.lng}
@@ -1549,88 +1631,9 @@ export default function StationsMap({
                 return result ?? { ok: false, message: "No se pudo registrar el incidente." };
               }}
             />
-          </Popup>
-        </Fragment>
+          </div>
+        </div>
       ) : null}
-
-      {services
-        .filter(
-          (service) =>
-            typeof service.latitude === "number" && typeof service.longitude === "number"
-        )
-        .map((service) => {
-          const key = `service-${service.id}`;
-          const phoneHref = buildTelHref(service.phone ?? service.whatsapp_number);
-          const whatsappHref = buildWhatsAppHref(service.whatsapp_number ?? service.phone);
-          const isSelected = selectedKey === key;
-          const isBusy = adminActionKey === key;
-          const isVisible = service.is_active && (service.is_published ?? true);
-
-          return (
-            <Marker
-              key={key}
-              position={[service.latitude as number, service.longitude as number]}
-              icon={createServiceMarkerIcon(service.category, isSelected, isVisible)}
-              eventHandlers={{
-                click: () => onSelectKey(key),
-              }}
-            >
-              <Popup keepInView maxWidth={280}>
-                <ServicePopupCard
-                  isAdminMode={isAdminMode}
-                  isBusy={isBusy}
-                  onAdminDeleteService={onAdminDeleteService}
-                  onAdminOpenEditor={onAdminOpenEditor}
-                  onAdminToggleServicePublication={onAdminToggleServicePublication}
-                  onAdminToggleServiceVerification={onAdminToggleServiceVerification}
-                  onSubmitPlaceReport={onSubmitPlaceReport}
-                  onSubmitServiceReview={onSubmitServiceReview}
-                  phoneHref={phoneHref}
-                  service={service}
-                  whatsappHref={whatsappHref}
-                />
-              </Popup>
-            </Marker>
-          );
-        })}
-
-      {stations
-        .filter(
-          (station) =>
-            typeof station.latitude === "number" && typeof station.longitude === "number"
-        )
-        .map((station) => {
-          const key = `station-${station.id}`;
-          const isSelected = selectedKey === key;
-          const color = getStationMarkerColor(station.latestReport?.availability_status);
-          const isBusy = adminActionKey === key;
-
-          return (
-            <Marker
-              key={key}
-              position={[station.latitude as number, station.longitude as number]}
-              icon={createStationMarkerIcon(color, isSelected, station.is_active ?? true)}
-              eventHandlers={{
-                click: () => onSelectKey(key),
-              }}
-            >
-              <Popup keepInView maxWidth={280}>
-                <StationPopupCard
-                  isAdminMode={isAdminMode}
-                  isBusy={isBusy}
-                  onAdminDeleteStation={onAdminDeleteStation}
-                  onAdminOpenEditor={onAdminOpenEditor}
-                  onAdminToggleStationVerification={onAdminToggleStationVerification}
-                  onQuickReportStation={onQuickReportStation}
-                  onSubmitPlaceReport={onSubmitPlaceReport}
-                  onSubmitStationReview={onSubmitStationReview}
-                  onRequestReportStation={onRequestReportStation}
-                  station={station}
-                />
-              </Popup>
-            </Marker>
-          );
-        })}
-    </MapContainer>
+    </div>
   );
 }
