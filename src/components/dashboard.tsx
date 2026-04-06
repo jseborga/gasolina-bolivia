@@ -96,6 +96,17 @@ type IncidentMapFilter =
   | "derrumbe"
   | "otro";
 
+const INCIDENT_FILTER_OPTIONS: ReadonlyArray<readonly [IncidentMapFilter, string]> = [
+  ["all", "Todos"],
+  ["nearby", "Cerca"],
+  ["control_vial", "Control"],
+  ["corte_via", "Corte"],
+  ["marcha", "Marcha"],
+  ["accidente", "Accidente"],
+  ["derrumbe", "Derrumbe"],
+  ["none", "Ocultar"],
+];
+
 function normalizeSearchValue(value: string) {
   return value
     .toLowerCase()
@@ -283,6 +294,7 @@ export function Dashboard({
   >("idle");
   const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
   const [incidentMapFilter, setIncidentMapFilter] = useState<IncidentMapFilter>("all");
+  const [showIncidentFilters, setShowIncidentFilters] = useState(false);
   const [incidentReportMode, setIncidentReportMode] = useState(false);
   const [didAutoPickNearest, setDidAutoPickNearest] = useState(false);
   const [requestedInitialLocation, setRequestedInitialLocation] = useState(false);
@@ -559,6 +571,8 @@ export function Dashboard({
   );
 
   const nearbyTrafficIncident = nearbyTrafficIncidents[0] ?? null;
+  const selectedIncidentFilterLabel =
+    INCIDENT_FILTER_OPTIONS.find(([value]) => value === incidentMapFilter)?.[1] ?? "Todos";
 
   const handleUseMyLocation = (options?: { silent?: boolean }) => {
     if (isAdminMode) {
@@ -1393,75 +1407,88 @@ export function Dashboard({
 
       <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="space-y-2">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Incidentes en mapa
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["all", "Todos"],
-                ["nearby", "Cerca"],
-                ["control_vial", "Control"],
-                ["corte_via", "Corte"],
-                ["marcha", "Marcha"],
-                ["accidente", "Accidente"],
-                ["none", "Ocultar"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setIncidentMapFilter(value)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                  incidentMapFilter === value
-                    ? "bg-slate-900 text-white"
-                    : "border border-slate-300 bg-white text-slate-700"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {!isAdminMode && userLocation ? (
-            nearbyTrafficIncidents.length > 0 ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">
-                  Cerca de ti
+          <button
+            type="button"
+            onClick={() => setShowIncidentFilters((current) => !current)}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white"
+          >
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Incidentes
+              </div>
+              <div className="truncate text-sm font-semibold text-slate-900">
+                {trafficIncidents.length} activos · {selectedIncidentFilterLabel}
+              </div>
+              {!isAdminMode && nearbyTrafficIncidents.length > 0 ? (
+                <div className="text-xs text-amber-700">
+                  {nearbyTrafficIncidents.length} cerca de tu ubicacion
                 </div>
-                <div className="mt-1 space-y-1.5">
-                  {nearbyTrafficIncidents.map((item) => (
-                    <div
-                      key={`nearby-incident-${item.incident.id}`}
-                      className="flex items-center justify-between gap-3 text-xs text-amber-900"
-                    >
-                      <div className="min-w-0 truncate font-medium">
-                        {getIncidentTypeLabel(item.incident.incident_type)}
-                      </div>
-                      <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                        {formatDistance(item.distanceKm)}
-                      </div>
+              ) : null}
+            </div>
+            <div className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+              {showIncidentFilters ? "Ocultar" : "Filtrar"}
+            </div>
+          </button>
+          {showIncidentFilters ? (
+            <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="flex flex-wrap gap-2">
+                {INCIDENT_FILTER_OPTIONS.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setIncidentMapFilter(value)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                      incidentMapFilter === value
+                        ? "bg-slate-900 text-white"
+                        : "border border-slate-300 bg-white text-slate-700"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {!isAdminMode && userLocation ? (
+                nearbyTrafficIncidents.length > 0 ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                      Cerca de ti
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-slate-500">
-                No hay incidentes activos a menos de 1 km.
-              </div>
-            )
+                    <div className="mt-1 space-y-1.5">
+                      {nearbyTrafficIncidents.map((item) => (
+                        <div
+                          key={`nearby-incident-${item.incident.id}`}
+                          className="flex items-center justify-between gap-3 text-xs text-amber-900"
+                        >
+                          <div className="min-w-0 truncate font-medium">
+                            {getIncidentTypeLabel(item.incident.incident_type)}
+                          </div>
+                          <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            {formatDistance(item.distanceKm)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500">
+                    No hay incidentes activos a menos de 1 km.
+                  </div>
+                )
+              ) : null}
+            </div>
           ) : null}
         </div>
       </section>
 
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[500] flex justify-center px-3">
+        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-[500] flex justify-center px-3">
           <button
             type="button"
             onClick={() => setIncidentReportMode((current) => !current)}
-            className={`pointer-events-auto rounded-xl px-4 py-2 text-xs font-medium shadow-sm ring-1 backdrop-blur ${
+            className={`pointer-events-auto rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-lg ring-2 backdrop-blur transition ${
               incidentReportMode
-                ? "bg-amber-500 text-white ring-amber-500"
-                : "bg-white/95 text-slate-800 ring-slate-200 hover:bg-white"
+                ? "bg-slate-900 text-white ring-slate-900"
+                : "bg-rose-600 text-white ring-rose-300 hover:bg-rose-500"
             }`}
           >
             {incidentReportMode ? "Cancelar incidente" : "Reportar incidente"}
