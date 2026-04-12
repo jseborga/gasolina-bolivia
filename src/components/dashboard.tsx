@@ -8,6 +8,7 @@ import { ensureVisitorId, trackAppEvent } from "@/lib/analytics";
 import type { ServiceAdminInput } from "@/lib/admin-service-types";
 import type { StationAdminInput } from "@/lib/admin-types";
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
+import { getNearbyTrafficIncidents, limitItemsToNearby } from "@/lib/map-visibility";
 import {
   formatAvailability,
   formatFuelType,
@@ -15,6 +16,7 @@ import {
   formatRelativeTime,
 } from "@/lib/reporting";
 import { getSupportServiceLabel } from "@/lib/services";
+import { getTrafficIncidentLabel } from "@/lib/traffic-incidents";
 import type {
   Report,
   ReportInput,
@@ -23,6 +25,7 @@ import type {
   SupportService,
   SupportServiceWithDistance,
   TrafficIncident,
+  TrafficIncidentType,
 } from "@/lib/types";
 import { haversineKm } from "@/lib/utils";
 
@@ -98,7 +101,7 @@ type IncidentMapFilter =
 
 const INCIDENT_FILTER_OPTIONS: ReadonlyArray<readonly [IncidentMapFilter, string]> = [
   ["all", "Todos"],
-  ["nearby", "Cerca"],
+  ["nearby", "Cerca de ti"],
   ["control_vial", "Control"],
   ["corte_via", "Corte"],
   ["marcha", "Marcha"],
@@ -132,28 +135,8 @@ function formatDistance(distanceKm?: number | null) {
   return `${distanceKm.toFixed(1)} km`;
 }
 
-function getIncidentTypeLabel(
-  type: "control_vial" | "corte_via" | "marcha" | "accidente" | "derrumbe" | "otro"
-) {
-  switch (type) {
-    case "control_vial":
-      return "Control";
-    case "corte_via":
-      return "Corte";
-    case "marcha":
-      return "Marcha";
-    case "accidente":
-      return "Accidente";
-    case "derrumbe":
-      return "Derrumbe";
-    case "otro":
-    default:
-      return "Otro";
-  }
-}
-
 function getIncidentAlertMeta(
-  type: "control_vial" | "corte_via" | "marcha" | "accidente" | "derrumbe" | "otro"
+  type: TrafficIncidentType
 ) {
   switch (type) {
     case "control_vial":
@@ -357,7 +340,9 @@ export function Dashboard({
   const [locationFocusKey, setLocationFocusKey] = useState(0);
   const [showHomeGuide, setShowHomeGuide] = useState(false);
   const [publicMapFilter, setPublicMapFilter] = useState<PublicMapFilter>("stations");
-  const [incidentMapFilter, setIncidentMapFilter] = useState<IncidentMapFilter>("all");
+  const [incidentMapFilter, setIncidentMapFilter] = useState<IncidentMapFilter>(
+    isAdminMode ? "all" : "nearby"
+  );
   const [showIncidentFilters, setShowIncidentFilters] = useState(false);
   const [showPublishMenu, setShowPublishMenu] = useState(false);
   const [incidentReportMode, setIncidentReportMode] = useState(false);
@@ -526,7 +511,7 @@ export function Dashboard({
           .filter((item) => !normalizedQuery || item.searchRank >= 0)
       : [];
 
-    return [...stationResults, ...serviceResults].sort((a, b) => {
+    const sortedResults = [...stationResults, ...serviceResults].sort((a, b) => {
       if (normalizedQuery) {
         if (a.searchRank !== b.searchRank) return b.searchRank - a.searchRank;
       }
@@ -539,7 +524,20 @@ export function Dashboard({
       const bName = b.kind === "station" ? b.station.name : b.service.name;
       return aName.localeCompare(bName, "es");
     });
-  }, [isAdminMode, normalizedQuery, publicMapFilter, servicesWithDistance, stationsWithDistance]);
+
+    if (isAdminMode || normalizedQuery || !userLocation) {
+      return sortedResults;
+    }
+
+    return limitItemsToNearby(sortedResults);
+  }, [
+    isAdminMode,
+    normalizedQuery,
+    publicMapFilter,
+    servicesWithDistance,
+    stationsWithDistance,
+    userLocation,
+  ]);
 
   useEffect(() => {
     const hasSelected = selectedKey
@@ -609,23 +607,11 @@ export function Dashboard({
   );
 
   const nearbyTrafficIncidents = useMemo(() => {
-    if (isAdminMode || !userLocation || trafficIncidents.length === 0) {
+    if (isAdminMode) {
       return [];
     }
 
-    return trafficIncidents
-      .map((incident) => ({
-        distanceKm: haversineKm(
-          userLocation.lat,
-          userLocation.lng,
-          incident.latitude,
-          incident.longitude
-        ),
-        incident,
-      }))
-      .filter((item) => item.distanceKm <= 1)
-      .sort((a, b) => a.distanceKm - b.distanceKm)
-      .slice(0, 3);
+    return getNearbyTrafficIncidents(trafficIncidents, userLocation);
   }, [isAdminMode, trafficIncidents, userLocation]);
 
   const visibleTrafficIncidents = useMemo(
@@ -1157,15 +1143,10 @@ export function Dashboard({
   const handleCreateTrafficIncident = async (input: {
     description?: string;
     durationMinutes?: number;
-    incidentType:
-      | "control_vial"
-      | "corte_via"
-      | "marcha"
-      | "accidente"
-      | "derrumbe"
-      | "otro";
+    incidentType: TrafficIncidentType;
     latitude: number;
     longitude: number;
+    radiusMeters?: number;
   }) => {
     try {
       const visitorId = ensureVisitorId();
@@ -1178,6 +1159,7 @@ export function Dashboard({
           incidentType: input.incidentType,
           latitude: input.latitude,
           longitude: input.longitude,
+          radiusMeters: input.radiusMeters,
           visitorId,
         }),
       });
@@ -1524,7 +1506,7 @@ export function Dashboard({
                           className="flex items-center justify-between gap-3 text-xs text-amber-900"
                         >
                           <div className="min-w-0 truncate font-medium">
-                            {getIncidentTypeLabel(item.incident.incident_type)}
+                            {getTrafficIncidentLabel(item.incident.incident_type)}
                           </div>
                           <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                             {formatDistance(item.distanceKm)}
@@ -1535,7 +1517,7 @@ export function Dashboard({
                   </div>
                 ) : (
                   <div className="text-xs text-slate-500">
-                    No hay incidentes activos a menos de 1 km.
+                    No hay incidentes activos que afecten tu zona.
                   </div>
                 )
               ) : (
@@ -1694,7 +1676,7 @@ export function Dashboard({
                           className="flex items-center justify-between gap-3 text-xs text-amber-900"
                         >
                           <div className="min-w-0 truncate font-medium">
-                            {getIncidentTypeLabel(item.incident.incident_type)}
+                            {getTrafficIncidentLabel(item.incident.incident_type)}
                           </div>
                           <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                             {formatDistance(item.distanceKm)}
@@ -1705,7 +1687,7 @@ export function Dashboard({
                   </div>
                 ) : (
                   <div className="text-xs text-slate-500">
-                    No hay incidentes activos a menos de 1 km.
+                    No hay incidentes activos que afecten tu zona.
                   </div>
                 )
               ) : null}
@@ -1874,7 +1856,7 @@ export function Dashboard({
                     {getIncidentAlertMeta(nearbyTrafficIncident.incident.incident_type).title}
                   </div>
                   <div className="text-[11px] opacity-80">
-                    {getIncidentTypeLabel(nearbyTrafficIncident.incident.incident_type)} a{" "}
+                    {getTrafficIncidentLabel(nearbyTrafficIncident.incident.incident_type)} a{" "}
                     {formatDistance(nearbyTrafficIncident.distanceKm)}
                   </div>
                 </div>

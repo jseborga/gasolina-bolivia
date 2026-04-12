@@ -18,6 +18,15 @@ import { RatingStars } from "@/components/rating-stars";
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
 import { formatAvailability, formatFuelType, formatQueue, formatRelativeTime } from "@/lib/reporting";
 import { getSupportServiceLabel } from "@/lib/services";
+import {
+  DEFAULT_TRAFFIC_INCIDENT_DURATION_BY_TYPE,
+  getDefaultTrafficIncidentRadiusMeters,
+  getTrafficIncidentDurationLabel,
+  getTrafficIncidentLabel,
+  getTrafficIncidentRadiusLabel,
+  TRAFFIC_INCIDENT_DURATION_OPTIONS,
+  TRAFFIC_INCIDENT_RADIUS_OPTIONS,
+} from "@/lib/traffic-incidents";
 import type {
   ReportInput,
   StationWithLatest,
@@ -58,6 +67,7 @@ type StationsMapProps = {
     incidentType: TrafficIncidentType;
     latitude: number;
     longitude: number;
+    radiusMeters?: number;
   }) => Promise<{ incident?: TrafficIncident; ok: boolean; message: string }>;
   onQuickReportStation?: (
     input: ReportInput
@@ -93,15 +103,6 @@ type StationsMapProps = {
 
 type PopupTab = "info" | "report" | "review";
 
-const INCIDENT_LABELS: Record<TrafficIncidentType, string> = {
-  accidente: "Accidente",
-  control_vial: "Control vial",
-  corte_via: "Corte de via",
-  derrumbe: "Derrumbe",
-  marcha: "Marcha",
-  otro: "Incidente",
-};
-
 const INCIDENT_COLORS: Record<TrafficIncidentType, string> = {
   accidente: "#dc2626",
   control_vial: "#7c3aed",
@@ -110,10 +111,6 @@ const INCIDENT_COLORS: Record<TrafficIncidentType, string> = {
   marcha: "#e11d48",
   otro: "#0f172a",
 };
-
-function getTrafficIncidentLabel(type: TrafficIncidentType) {
-  return INCIDENT_LABELS[type] ?? "Incidente";
-}
 
 function getTrafficIncidentColor(type: TrafficIncidentType) {
   return INCIDENT_COLORS[type] ?? "#0f172a";
@@ -135,23 +132,6 @@ function getTrafficIncidentMarkerMeta(type: TrafficIncidentType) {
     default:
       return { color: "#0f172a", symbol: "&#128205;" };
   }
-}
-
-const DEFAULT_INCIDENT_DURATION_BY_TYPE: Record<TrafficIncidentType, number> = {
-  accidente: 120,
-  control_vial: 60,
-  corte_via: 180,
-  derrumbe: 360,
-  marcha: 240,
-  otro: 120,
-};
-
-const INCIDENT_DURATION_OPTIONS = [30, 60, 120, 240, 360];
-
-function getIncidentDurationLabel(minutes: number) {
-  if (minutes < 60) return `${minutes} min`;
-  if (minutes % 60 === 0) return `${minutes / 60} h`;
-  return `${(minutes / 60).toFixed(1)} h`;
 }
 
 function formatIncidentExpiry(expiresAt?: string | null) {
@@ -546,18 +526,23 @@ function IncidentDraftPopup({
     incidentType: TrafficIncidentType;
     latitude: number;
     longitude: number;
+    radiusMeters?: number;
   }) => Promise<{ incident?: TrafficIncident; ok: boolean; message: string }>;
 }) {
   const [incidentType, setIncidentType] = useState<TrafficIncidentType>("control_vial");
   const [durationMinutes, setDurationMinutes] = useState(
-    DEFAULT_INCIDENT_DURATION_BY_TYPE.control_vial
+    DEFAULT_TRAFFIC_INCIDENT_DURATION_BY_TYPE.control_vial
+  );
+  const [radiusMeters, setRadiusMeters] = useState(
+    getDefaultTrafficIncidentRadiusMeters("control_vial")
   );
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    setDurationMinutes(DEFAULT_INCIDENT_DURATION_BY_TYPE[incidentType]);
+    setDurationMinutes(DEFAULT_TRAFFIC_INCIDENT_DURATION_BY_TYPE[incidentType]);
+    setRadiusMeters(getDefaultTrafficIncidentRadiusMeters(incidentType));
   }, [incidentType]);
 
   const submit = async () => {
@@ -573,6 +558,7 @@ function IncidentDraftPopup({
         incidentType,
         latitude,
         longitude,
+        radiusMeters,
       });
       setFeedback(result);
 
@@ -618,14 +604,33 @@ function IncidentDraftPopup({
           Duracion estimada
         </div>
         <div className="flex flex-wrap gap-2">
-          {INCIDENT_DURATION_OPTIONS.map((option) => (
+          {TRAFFIC_INCIDENT_DURATION_OPTIONS.map((option) => (
             <ChoiceChip
               key={option}
               active={durationMinutes === option}
-              label={getIncidentDurationLabel(option)}
+              label={getTrafficIncidentDurationLabel(option)}
               onClick={() => setDurationMinutes(option)}
             />
           ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+          Radio afectado
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {TRAFFIC_INCIDENT_RADIUS_OPTIONS.map((option) => (
+            <ChoiceChip
+              key={option}
+              active={radiusMeters === option}
+              label={getTrafficIncidentRadiusLabel(option)}
+              onClick={() => setRadiusMeters(option)}
+            />
+          ))}
+        </div>
+        <div className="text-[11px] text-slate-500">
+          Usa el radio real de impacto para no alarmar zonas que no estan afectadas.
         </div>
       </div>
 
@@ -757,7 +762,10 @@ function TrafficIncidentPopupCard({
         {formatIncidentExpiry(incident.expires_at)}
       </div>
       <div className="text-[11px] text-slate-500">
-        Duracion prevista: {getIncidentDurationLabel(incident.duration_minutes)}
+        Duracion prevista: {getTrafficIncidentDurationLabel(incident.duration_minutes)}
+      </div>
+      <div className="text-[11px] text-slate-500">
+        Radio afectado: {getTrafficIncidentRadiusLabel(incident.radius_meters)}
       </div>
       {incident.description ? <div>{incident.description}</div> : null}
       <div className="flex flex-wrap gap-2">

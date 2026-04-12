@@ -2,37 +2,12 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { isMissingTableError } from "@/lib/supabase-errors";
 import { getAdminSupabase } from "@/lib/supabase-server";
+import {
+  normalizeTrafficIncidentDurationMinutes,
+  normalizeTrafficIncidentRadiusMeters,
+  VALID_TRAFFIC_INCIDENT_TYPES,
+} from "@/lib/traffic-incidents";
 import type { TrafficIncident, TrafficIncidentType } from "@/lib/types";
-
-const VALID_INCIDENT_TYPES: TrafficIncidentType[] = [
-  "control_vial",
-  "corte_via",
-  "marcha",
-  "accidente",
-  "derrumbe",
-  "otro",
-];
-
-const DEFAULT_DURATION_BY_TYPE: Record<TrafficIncidentType, number> = {
-  accidente: 120,
-  control_vial: 60,
-  corte_via: 180,
-  derrumbe: 360,
-  marcha: 240,
-  otro: 120,
-};
-
-function normalizeDurationMinutes(value: unknown, incidentType: TrafficIncidentType) {
-  const parsed = typeof value === "number" ? value : Number(value);
-  const fallback = DEFAULT_DURATION_BY_TYPE[incidentType] ?? 120;
-
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-
-  const rounded = Math.round(parsed);
-  return Math.min(720, Math.max(15, rounded));
-}
 
 function getIpAddress(request: NextRequest) {
   const forwarded = request.headers.get("x-forwarded-for");
@@ -86,7 +61,7 @@ export async function POST(request: NextRequest) {
     const longitude = Number(body.longitude);
     const visitorId = typeof body.visitorId === "string" ? body.visitorId.trim() : "";
 
-    if (!VALID_INCIDENT_TYPES.includes(incidentType as TrafficIncidentType)) {
+    if (!VALID_TRAFFIC_INCIDENT_TYPES.includes(incidentType as TrafficIncidentType)) {
       return NextResponse.json({ error: "Tipo de incidente invalido." }, { status: 400 });
     }
 
@@ -99,8 +74,12 @@ export async function POST(request: NextRequest) {
     }
 
     const description = normalizeDescription(body.description);
-    const durationMinutes = normalizeDurationMinutes(
+    const durationMinutes = normalizeTrafficIncidentDurationMinutes(
       body.durationMinutes,
+      incidentType as TrafficIncidentType
+    );
+    const radiusMeters = normalizeTrafficIncidentRadiusMeters(
+      body.radiusMeters,
       incidentType as TrafficIncidentType
     );
     const latitudeBucket = normalizeCoordinateBucket(latitude);
@@ -121,6 +100,7 @@ export async function POST(request: NextRequest) {
         description,
         latitude,
         longitude,
+        radius_meters: radiusMeters,
         duration_minutes: durationMinutes,
         expires_at: new Date(Date.now() + durationMinutes * 60 * 1000).toISOString(),
         reporter_key: reviewerKey,
@@ -196,6 +176,7 @@ export async function POST(request: NextRequest) {
       ...(data as TrafficIncident),
       confirmation_count: 1,
       duration_minutes: durationMinutes,
+      radius_meters: radiusMeters,
       rejection_count: 0,
     };
 
@@ -212,6 +193,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         duration_minutes: durationMinutes,
         incident_type: incidentType,
+        radius_meters: radiusMeters,
       },
     });
 
