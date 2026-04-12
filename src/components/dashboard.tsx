@@ -373,7 +373,6 @@ export function Dashboard({
     isAdminMode ? "all" : "nearby"
   );
   const [showIncidentFilters, setShowIncidentFilters] = useState(false);
-  const [showPublishMenu, setShowPublishMenu] = useState(false);
   const [incidentReportMode, setIncidentReportMode] = useState(false);
   const [hasIncidentDraftPoint, setHasIncidentDraftPoint] = useState(false);
   const [stationAdminDraft, setStationAdminDraft] = useState<StationMapAdminDraft | null>(null);
@@ -822,7 +821,6 @@ export function Dashboard({
 
   const handleTogglePublicFilter = (nextFilter: Exclude<PublicMapFilter, "none">) => {
     setShowIncidentFilters(false);
-    setShowPublishMenu(false);
     setPublicMapFilter((current) => (current === nextFilter ? "none" : nextFilter));
   };
 
@@ -1672,7 +1670,6 @@ export function Dashboard({
             <button
               type="button"
               onClick={() => {
-                setShowPublishMenu(false);
                 setShowIncidentFilters((current) => !current);
               }}
               className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold ring-1 ${
@@ -1682,18 +1679,6 @@ export function Dashboard({
               }`}
             >
               Incidentes
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowIncidentFilters(false);
-                setShowPublishMenu((current) => !current);
-              }}
-              className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold ${
-                showPublishMenu ? "bg-slate-700 text-white" : "bg-slate-950 text-white"
-              }`}
-            >
-              Publicar
             </button>
           </div>
           {showIncidentFilters ? (
@@ -1748,80 +1733,7 @@ export function Dashboard({
               )}
             </div>
           ) : null}
-          {showPublishMenu ? (
-            <div className="mt-3 grid gap-2 rounded-[1.4rem] bg-slate-50 p-3 ring-1 ring-slate-200">
-              <a
-                href="/sumate?category=estacion"
-                onClick={() =>
-                  trackAppEvent({
-                    eventType: "open_vendor_join",
-                    targetType: "vendor_request",
-                    metadata: { category: "estacion", source: "home_top_publish" },
-                  })
-                }
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
-              >
-                Publicar surtidor
-              </a>
-              <a
-                href="/sumate?category=taller_mecanico"
-                onClick={() =>
-                  trackAppEvent({
-                    eventType: "open_vendor_join",
-                    targetType: "vendor_request",
-                    metadata: { category: "taller_mecanico", source: "home_top_publish" },
-                  })
-                }
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
-              >
-                Publicar taller mecanico
-              </a>
-              <a
-                href="/sumate?category=grua"
-                onClick={() =>
-                  trackAppEvent({
-                    eventType: "open_vendor_join",
-                    targetType: "vendor_request",
-                    metadata: { category: "grua", source: "home_top_publish" },
-                  })
-                }
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
-              >
-                Publicar grua
-              </a>
-              <a
-                href="/sumate?category=aditivos"
-                onClick={() =>
-                  trackAppEvent({
-                    eventType: "open_vendor_join",
-                    targetType: "vendor_request",
-                    metadata: { category: "aditivos", source: "home_top_publish" },
-                  })
-                }
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
-              >
-                Publicar aditivos
-              </a>
-            </div>
-          ) : null}
         </section>
-      ) : null}
-
-      {!isAdminMode ? (
-        <ContributorModeCard
-          error={contributorError}
-          loading={contributorLoading}
-          onActivate={() => {
-            void resolveContributorToken(contributorToken);
-          }}
-          onClear={clearContributorMode}
-          onTokenChange={(value) => {
-            setContributorToken(value);
-            setContributorError(null);
-          }}
-          profile={contributorProfile}
-          token={contributorToken}
-        />
       ) : null}
 
       {isAdminMode && quickResults.length > 0 ? (
@@ -2916,6 +2828,95 @@ export function Dashboard({
           </div>
         )}
       </section>
+      ) : null}
+
+      {!isAdminMode ? (
+        <div className="grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">
+          <section className="rounded-[1.8rem] border border-white/80 bg-white/92 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+            <div className="rounded-[1.4rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                Publicar en SurtiMapa
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Si quieres sumar un negocio o punto nuevo, usa este acceso secundario. Asi la
+                pantalla inicial queda mas limpia y el ingreso principal sigue centrado en buscar.
+              </p>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <a
+                  href="/sumate?category=estacion"
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "open_vendor_join",
+                      targetType: "vendor_request",
+                      metadata: { category: "estacion", source: "home_bottom_actions" },
+                    })
+                  }
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+                >
+                  Publicar surtidor
+                </a>
+                <a
+                  href="/sumate?category=taller_mecanico"
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "open_vendor_join",
+                      targetType: "vendor_request",
+                      metadata: {
+                        category: "taller_mecanico",
+                        source: "home_bottom_actions",
+                      },
+                    })
+                  }
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+                >
+                  Publicar taller mecanico
+                </a>
+                <a
+                  href="/sumate?category=grua"
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "open_vendor_join",
+                      targetType: "vendor_request",
+                      metadata: { category: "grua", source: "home_bottom_actions" },
+                    })
+                  }
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+                >
+                  Publicar grua
+                </a>
+                <a
+                  href="/sumate?category=aditivos"
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "open_vendor_join",
+                      targetType: "vendor_request",
+                      metadata: { category: "aditivos", source: "home_bottom_actions" },
+                    })
+                  }
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-800 ring-1 ring-slate-200"
+                >
+                  Publicar aditivos
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <ContributorModeCard
+            error={contributorError}
+            loading={contributorLoading}
+            onActivate={() => {
+              void resolveContributorToken(contributorToken);
+            }}
+            onClear={clearContributorMode}
+            onTokenChange={(value) => {
+              setContributorToken(value);
+              setContributorError(null);
+            }}
+            profile={contributorProfile}
+            token={contributorToken}
+          />
+        </div>
       ) : null}
     </div>
   );
