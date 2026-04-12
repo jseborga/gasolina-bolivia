@@ -192,7 +192,7 @@ export default async function AdminAnalyticsPage() {
         .order("created_at", { ascending: false })
         .limit(160),
       supabase
-        .from("service_reviews")
+        .from("support_service_reviews")
         .select(
           "id,service_id,score,comment,visitor_id,ip_address,latitude_bucket,longitude_bucket,created_at"
         )
@@ -250,9 +250,9 @@ export default async function AdminAnalyticsPage() {
       warnings.push(`No se pudieron leer reviews de estaciones: ${stationReviewsResult.error.message}`);
     }
 
-    if (isMissingTableError(serviceReviewsResult.error, "service_reviews")) {
+    if (isMissingTableError(serviceReviewsResult.error, "support_service_reviews")) {
       warnings.push(
-        "Falta la tabla service_reviews. Ejecuta la migracion supabase/006_service_reviews.sql."
+        "Falta la tabla support_service_reviews. Ejecuta la migracion supabase/006_support_service_reviews.sql."
       );
     } else if (serviceReviewsResult.error) {
       warnings.push(`No se pudieron leer reviews de servicios: ${serviceReviewsResult.error.message}`);
@@ -272,7 +272,7 @@ export default async function AdminAnalyticsPage() {
     const stationReviews = (isMissingTableError(stationReviewsResult.error, "station_reviews")
       ? []
       : stationReviewsResult.data ?? []) as StationReviewAnalyticsRow[];
-    const serviceReviews = (isMissingTableError(serviceReviewsResult.error, "service_reviews")
+    const serviceReviews = (isMissingTableError(serviceReviewsResult.error, "support_service_reviews")
       ? []
       : serviceReviewsResult.data ?? []) as ServiceReviewAnalyticsRow[];
 
