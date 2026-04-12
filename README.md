@@ -18,7 +18,7 @@ Version estable para EasyPanel, con:
 - `SUPABASE_DB_URL` o `DATABASE_URL`
 - `ADMIN_SESSION_SECRET`
 - `ADMIN_EMAILS`
-- `EVOLUTION_WEBHOOK_SECRET` opcional para validar `/api/webhooks/evolution/parking`
+- `EVOLUTION_WEBHOOK_SECRET` requerido para `/api/webhooks/evolution/parking`
 - `AUTO_RUN_MIGRATIONS=true` opcional
 - `AUTO_BOOTSTRAP_MIGRATIONS=true` opcional
 

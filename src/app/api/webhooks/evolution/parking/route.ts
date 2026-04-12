@@ -73,6 +73,9 @@ function parseWebhookCommand(text: string, sites: ParkingSite[]) {
 
   if (sites.length === 1) {
     site = sites[0];
+    if (site.code.toUpperCase() === firstToken) {
+      startIndex = 1;
+    }
   } else {
     site = sites.find((candidate) => candidate.code.toUpperCase() === firstToken) ?? null;
     if (site) {
@@ -118,7 +121,14 @@ export async function POST(request: NextRequest) {
     const configuredSecret = process.env.EVOLUTION_WEBHOOK_SECRET?.trim();
     const receivedSecret = request.headers.get("x-evolution-secret")?.trim();
 
-    if (configuredSecret && configuredSecret !== receivedSecret) {
+    if (!configuredSecret) {
+      return NextResponse.json(
+        { error: "Falta configurar EVOLUTION_WEBHOOK_SECRET en el servidor." },
+        { status: 503 }
+      );
+    }
+
+    if (configuredSecret !== receivedSecret) {
       return NextResponse.json({ error: "Webhook no autorizado." }, { status: 401 });
     }
 

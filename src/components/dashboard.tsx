@@ -494,9 +494,10 @@ export function Dashboard({
   const normalizedQuery = normalizeSearchValue(search);
 
   const results = useMemo<SearchResult[]>(() => {
-    const showStations = isAdminMode || publicMapFilter === "stations";
-    const showServices = isAdminMode || publicMapFilter === "servicio_mecanico";
-    const showParkings = isAdminMode || publicMapFilter === "parking";
+    const hasSearchQuery = normalizedQuery.length > 0;
+    const showStations = isAdminMode || hasSearchQuery || publicMapFilter === "stations";
+    const showServices = isAdminMode || hasSearchQuery || publicMapFilter === "servicio_mecanico";
+    const showParkings = isAdminMode || hasSearchQuery || publicMapFilter === "parking";
 
     const stationResults: SearchResult[] = showStations
       ? stationsWithDistance
