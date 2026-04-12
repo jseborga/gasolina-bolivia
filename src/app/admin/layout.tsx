@@ -36,6 +36,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               <Link href="/admin/analytics" className="text-slate-700 hover:text-slate-900">
                 Analytics
               </Link>
+              <Link href="/admin/ai-suggestions" className="text-slate-700 hover:text-slate-900">
+                IA Demo
+              </Link>
               <Link href="/admin/vendor-requests" className="text-slate-700 hover:text-slate-900">
                 Solicitudes
               </Link>

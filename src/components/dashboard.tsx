@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import ContributorModeCard from "@/components/contributor-mode-card";
+import AIDemoFeed from "@/components/ai-demo-feed";
 import { RatingStars } from "@/components/rating-stars";
 import { ReportForm } from "@/components/report-form";
 import { ensureVisitorId, trackAppEvent } from "@/lib/analytics";
@@ -26,6 +27,7 @@ import { getTrafficIncidentLabel } from "@/lib/traffic-incidents";
 import type {
   ParkingSite,
   ParkingSiteWithDistance,
+  AgentReportSuggestion,
   AppProfileRole,
   Report,
   ReportInput,
@@ -44,6 +46,7 @@ const StationsMap = dynamic(() => import("@/components/stations-map"), {
 
 type DashboardProps = {
   adminSession?: { email: string } | null;
+  initialAiSuggestions?: AgentReportSuggestion[];
   initialParkingSites: ParkingSite[];
   initialStations: StationWithLatest[];
   initialServices: SupportService[];
@@ -346,6 +349,7 @@ function buildServiceAdminPayload(
 
 export function Dashboard({
   adminSession = null,
+  initialAiSuggestions = [],
   initialParkingSites,
   initialTrafficIncidents,
   initialStations,
@@ -2829,6 +2833,8 @@ export function Dashboard({
         )}
       </section>
       ) : null}
+
+      {!isAdminMode ? <AIDemoFeed items={initialAiSuggestions} /> : null}
 
       {!isAdminMode ? (
         <div className="grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">

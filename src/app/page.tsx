@@ -3,6 +3,7 @@ import { Dashboard } from "@/components/dashboard";
 import { getAppBaseUrl } from "@/lib/app-url";
 import { getOptionalAdminSession } from "@/lib/admin-auth";
 import {
+  getMissingAgentSuggestionsMessage,
   getMissingParkingSitesMessage,
   getMissingSupportServicesMessage,
   isMissingColumnError,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/support-services-compat";
 import {
   ParkingSite,
+  AgentReportSuggestion,
   Report,
   Station,
   StationWithLatest,
@@ -80,6 +82,7 @@ export default async function HomePage() {
     let incidentsError = incidentsResult.error;
     let parkingSitesData: ParkingSite[] = [];
     let parkingSitesError = parkingSitesResult.error;
+    let aiSuggestionsData: AgentReportSuggestion[] = [];
 
     if (!servicesError && initialServicesResult.data) {
       servicesData = initialServicesResult.data as unknown as SupportService[];
@@ -91,6 +94,28 @@ export default async function HomePage() {
 
     if (!parkingSitesError && parkingSitesResult.data) {
       parkingSitesData = parkingSitesResult.data as ParkingSite[];
+    }
+
+    const aiSuggestionsResult = adminSession
+      ? await supabase
+          .from("agent_report_suggestions")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(8)
+      : await supabase
+          .from("agent_report_suggestions")
+          .select("*")
+          .eq("status", "approved")
+          .eq("visibility", "public_demo")
+          .order("created_at", { ascending: false })
+          .limit(8);
+    const aiSuggestionsTableMissing = isMissingTableError(
+      aiSuggestionsResult.error,
+      "agent_report_suggestions"
+    );
+
+    if (!aiSuggestionsResult.error && aiSuggestionsResult.data) {
+      aiSuggestionsData = aiSuggestionsResult.data as AgentReportSuggestion[];
     }
 
     if (isMissingColumnError(servicesError, "support_services", SUPPORT_SERVICE_OPTIONAL_COLUMNS)) {
@@ -121,7 +146,8 @@ export default async function HomePage() {
       reportsError ||
       (servicesError && !servicesTableMissing) ||
       (incidentsError && !incidentsTableMissing) ||
-      (parkingSitesError && !parkingSitesTableMissing)
+      (parkingSitesError && !parkingSitesTableMissing) ||
+      (aiSuggestionsResult.error && !aiSuggestionsTableMissing)
     ) {
       return (
         <main className="mx-auto max-w-5xl px-6 py-10">
@@ -131,7 +157,8 @@ export default async function HomePage() {
               reportsError?.message ||
               servicesError?.message ||
               incidentsError?.message ||
-              parkingSitesError?.message}
+              parkingSitesError?.message ||
+              aiSuggestionsResult.error?.message}
           </div>
         </main>
       );
@@ -190,9 +217,15 @@ export default async function HomePage() {
             {getMissingParkingSitesMessage()}
           </div>
         ) : null}
+        {aiSuggestionsTableMissing ? (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {getMissingAgentSuggestionsMessage()}
+          </div>
+        ) : null}
 
         <Dashboard
           adminSession={adminSession ? { email: adminSession.email } : null}
+          initialAiSuggestions={aiSuggestionsTableMissing ? [] : aiSuggestionsData}
           initialParkingSites={parkingSites}
           initialTrafficIncidents={incidents}
           initialStations={stationsWithLatest}

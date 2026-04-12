@@ -37,6 +37,16 @@ export type CommunityContributionStatus =
   | "rejected"
   | "auto_flagged";
 export type CommunityContributionPayoutStatus = "accrued" | "paid" | "withheld";
+export type AgentSuggestionProvider = "openai" | "anthropic" | "custom";
+export type AgentSuggestionKind =
+  | "fuel_report"
+  | "traffic_incident"
+  | "parking_update"
+  | "place_report"
+  | "advisory";
+export type AgentSuggestionStatus = "pending_review" | "approved" | "rejected";
+export type AgentSuggestionVisibility = "admin_only" | "public_demo";
+export type AgentSuggestionMode = "ai_simulated" | "ai_draft" | "external_signal";
 
 export type UserLocation = {
   lat: number;
@@ -292,4 +302,30 @@ export type CreditLedgerEntry = {
   note: string | null;
   balance_after: number;
   created_at: string;
+};
+
+export type AgentReportSuggestion = {
+  id: number;
+  provider: AgentSuggestionProvider;
+  source_label: string;
+  kind: AgentSuggestionKind;
+  synthetic_mode: AgentSuggestionMode;
+  visibility: AgentSuggestionVisibility;
+  status: AgentSuggestionStatus;
+  title: string;
+  summary: string | null;
+  city: string | null;
+  zone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  radius_meters: number | null;
+  confidence: number;
+  criteria: Record<string, unknown> | null;
+  payload: Record<string, unknown> | null;
+  evidence: Array<Record<string, unknown>>;
+  review_notes: string | null;
+  reviewed_by_email: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at?: string;
 };

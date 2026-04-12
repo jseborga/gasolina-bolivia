@@ -69,3 +69,7 @@ export function getMissingAppProfilesMessage() {
 export function getMissingContributionModerationMessage() {
   return "Faltan las tablas o columnas de moderaciÃ³n y recompensas. Ejecuta la migraciÃ³n supabase/011_contributor_rewards_and_place_report_review.sql y vuelve a desplegar.";
 }
+
+export function getMissingAgentSuggestionsMessage() {
+  return "Falta la tabla agent_report_suggestions. Ejecuta la migraciÃ³n supabase/012_ai_agent_suggestions.sql y vuelve a desplegar.";
+}
