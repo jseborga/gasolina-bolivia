@@ -1,3 +1,4 @@
+import { registerCommunityContribution } from "@/lib/contributor-rewards";
 import { getAdminSupabase } from "@/lib/supabase-server";
 import type { ParkingStatus } from "@/lib/types";
 
@@ -80,19 +81,52 @@ export async function applyParkingUpdate(params: ParkingUpdateParams) {
     throw new Error(siteError?.message || "No se pudo actualizar el parqueo.");
   }
 
-  const { error: historyError } = await supabase.from("parking_updates").insert({
-    available_spots: nextAvailableSpots,
-    note,
-    parking_profile_id: params.parkingProfileId ?? null,
-    parking_site_id: params.siteId,
-    pricing_text: nextPricingText,
-    raw_payload: params.rawPayload ?? {},
-    source: params.source,
-    status: params.status,
-  });
+  const { data: historyRow, error: historyError } = await supabase
+    .from("parking_updates")
+    .insert({
+      available_spots: nextAvailableSpots,
+      note,
+      parking_profile_id: params.parkingProfileId ?? null,
+      parking_site_id: params.siteId,
+      pricing_text: nextPricingText,
+      raw_payload: params.rawPayload ?? {},
+      source: params.source,
+      status: params.status,
+    })
+    .select("id")
+    .single();
 
-  if (historyError) {
-    throw new Error(historyError.message);
+  if (historyError || !historyRow) {
+    throw new Error(historyError?.message || "No se pudo guardar el historial del parqueo.");
+  }
+
+  if (params.parkingProfileId != null) {
+    try {
+      await registerCommunityContribution({
+        appProfileId: params.parkingProfileId,
+        duplicateSignature: [
+          "parking",
+          params.siteId,
+          params.status,
+          nextAvailableSpots ?? "na",
+          nextPricingText ?? "sin-precio",
+        ].join(":"),
+        metadata: {
+          available_spots: nextAvailableSpots,
+          pricing_text: nextPricingText,
+          site_id: params.siteId,
+          source: params.source,
+          status: params.status,
+        },
+        sourceId: Number(historyRow.id),
+        sourceType: "parking_update",
+      });
+    } catch (rewardError) {
+      console.error(
+        "parking update contribution tracking failed",
+        rewardError instanceof Error ? rewardError.message : rewardError
+      );
+    }
   }
 
   return site;

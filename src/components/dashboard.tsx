@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import ContributorModeCard from "@/components/contributor-mode-card";
 import { RatingStars } from "@/components/rating-stars";
 import { ReportForm } from "@/components/report-form";
 import { ensureVisitorId, trackAppEvent } from "@/lib/analytics";
@@ -25,6 +26,7 @@ import { getTrafficIncidentLabel } from "@/lib/traffic-incidents";
 import type {
   ParkingSite,
   ParkingSiteWithDistance,
+  AppProfileRole,
   Report,
   ReportInput,
   StationWithLatest,
@@ -124,6 +126,16 @@ const INCIDENT_FILTER_OPTIONS: ReadonlyArray<readonly [IncidentMapFilter, string
   ["derrumbe", "Derrumbe"],
   ["none", "Ocultar"],
 ];
+
+const CONTRIBUTOR_TOKEN_STORAGE_KEY = "surtimapa-contributor-token";
+
+type ContributorProfileSummary = {
+  credit_balance: number;
+  full_name: string;
+  id: number;
+  reliability_score: number;
+  role: AppProfileRole;
+};
 
 function normalizeSearchValue(value: string) {
   return value
@@ -371,7 +383,66 @@ export function Dashboard({
     kind: "error" | "success";
     message: string;
   } | null>(null);
+  const [contributorToken, setContributorToken] = useState("");
+  const [contributorProfile, setContributorProfile] =
+    useState<ContributorProfileSummary | null>(null);
+  const [contributorLoading, setContributorLoading] = useState(false);
+  const [contributorError, setContributorError] = useState<string | null>(null);
   const detailSectionRef = useRef<HTMLElement | null>(null);
+
+  const resolveContributorToken = async (tokenValue: string) => {
+    const trimmedToken = tokenValue.trim();
+    if (!trimmedToken) {
+      setContributorError("Pega un token valido para activar el modo registrador.");
+      setContributorProfile(null);
+      return false;
+    }
+
+    setContributorLoading(true);
+    setContributorError(null);
+
+    try {
+      const response = await fetch("/api/contributors/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: trimmedToken }),
+      });
+      const json = (await response.json()) as {
+        error?: string;
+        profile?: ContributorProfileSummary;
+      };
+
+      if (!response.ok || !json.profile) {
+        throw new Error(json.error || "No se pudo validar el token.");
+      }
+
+      setContributorToken(trimmedToken);
+      setContributorProfile(json.profile);
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(CONTRIBUTOR_TOKEN_STORAGE_KEY, trimmedToken);
+      }
+
+      return true;
+    } catch (tokenError) {
+      setContributorProfile(null);
+      setContributorError(
+        tokenError instanceof Error ? tokenError.message : "No se pudo validar el token."
+      );
+      return false;
+    } finally {
+      setContributorLoading(false);
+    }
+  };
+
+  const clearContributorMode = () => {
+    setContributorToken("");
+    setContributorProfile(null);
+    setContributorError(null);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(CONTRIBUTOR_TOKEN_STORAGE_KEY);
+    }
+  };
 
   useEffect(() => {
     setParkings(initialParkingSites);
@@ -414,6 +485,20 @@ export function Dashboard({
 
     const guideDismissed = window.localStorage.getItem("surtimapa-home-guide-dismissed");
     setShowHomeGuide(guideDismissed !== "1");
+  }, [isAdminMode]);
+
+  useEffect(() => {
+    if (isAdminMode || typeof window === "undefined") {
+      return;
+    }
+
+    const storedToken = window.localStorage.getItem(CONTRIBUTOR_TOKEN_STORAGE_KEY)?.trim();
+    if (!storedToken) {
+      return;
+    }
+
+    setContributorToken(storedToken);
+    void resolveContributorToken(storedToken);
   }, [isAdminMode]);
 
   const stationsWithDistance = useMemo(() => {
@@ -1125,6 +1210,9 @@ export function Dashboard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...input,
+          contributorToken: contributorProfile ? contributorToken : undefined,
+          latitude: userLocation?.lat ?? null,
+          longitude: userLocation?.lng ?? null,
           visitorId,
         }),
       });
@@ -1233,6 +1321,7 @@ export function Dashboard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          contributorToken: contributorProfile ? contributorToken : undefined,
           latitude: userLocation?.lat ?? null,
           longitude: userLocation?.lng ?? null,
           notes: input.notes,
@@ -1272,6 +1361,7 @@ export function Dashboard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          contributorToken: contributorProfile ? contributorToken : undefined,
           description: input.description,
           durationMinutes: input.durationMinutes,
           incidentType: input.incidentType,
@@ -1715,6 +1805,23 @@ export function Dashboard({
             </div>
           ) : null}
         </section>
+      ) : null}
+
+      {!isAdminMode ? (
+        <ContributorModeCard
+          error={contributorError}
+          loading={contributorLoading}
+          onActivate={() => {
+            void resolveContributorToken(contributorToken);
+          }}
+          onClear={clearContributorMode}
+          onTokenChange={(value) => {
+            setContributorToken(value);
+            setContributorError(null);
+          }}
+          profile={contributorProfile}
+          token={contributorToken}
+        />
       ) : null}
 
       {isAdminMode && quickResults.length > 0 ? (

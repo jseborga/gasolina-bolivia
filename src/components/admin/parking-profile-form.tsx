@@ -313,6 +313,9 @@ export function ParkingProfileForm({
         <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
           <p className="font-medium">Enlace del gestor</p>
           <p className="mt-2 break-all font-mono text-xs">{portalUrl}</p>
+          <p className="mt-2 break-all font-mono text-xs text-sky-800">
+            Token operativo: {currentToken}
+          </p>
           {portalUrl ? (
             <Link
               href={portalUrl}
@@ -324,7 +327,8 @@ export function ParkingProfileForm({
           ) : null}
           <p className="mt-3 text-xs text-sky-800">
             Rol actual: {getAppProfileRoleLabel(form.role)}. El webhook de Evolution reconoce
-            el remitente por WhatsApp o telefono del perfil.
+            el remitente por WhatsApp o telefono del perfil. El mismo token tambien sirve para
+            activar el modo registrador en la app publica.
           </p>
         </div>
       ) : null}

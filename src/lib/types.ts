@@ -25,6 +25,18 @@ export type TrafficIncidentType =
 
 export type TrafficIncidentStatus = "active" | "resolved" | "expired";
 export type TrafficIncidentVote = "confirm" | "reject";
+export type PlaceReportStatus = "pending" | "approved" | "rejected";
+export type CommunityContributionSource =
+  | "fuel_report"
+  | "place_report"
+  | "traffic_incident"
+  | "parking_update";
+export type CommunityContributionStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "auto_flagged";
+export type CommunityContributionPayoutStatus = "accrued" | "paid" | "withheld";
 
 export type UserLocation = {
   lat: number;
@@ -219,6 +231,10 @@ export type PlaceReport = {
   target_name: string | null;
   reason: PlaceReportReason;
   notes: string | null;
+  review_notes?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by_email?: string | null;
+  status: PlaceReportStatus;
   visitor_id: string | null;
   ip_address: string | null;
   latitude_bucket: number | null;
@@ -241,4 +257,39 @@ export type TrafficIncident = {
   created_at: string;
   expires_at: string;
   resolved_at: string | null;
+};
+
+export type CommunityContribution = {
+  id: number;
+  source_type: CommunityContributionSource;
+  source_id: number;
+  app_profile_id: number | null;
+  contributor_role: AppProfileRole | null;
+  status: CommunityContributionStatus;
+  duplicate_signature: string | null;
+  risk_flags: string[];
+  points_suggested: number;
+  points_awarded: number;
+  review_notes: string | null;
+  reviewer_email: string | null;
+  reviewed_at: string | null;
+  payout_status: CommunityContributionPayoutStatus;
+  visitor_id: string | null;
+  ip_address: string | null;
+  latitude_bucket: number | null;
+  longitude_bucket: number | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type CreditLedgerEntry = {
+  id: number;
+  app_profile_id: number;
+  contribution_id: number | null;
+  entry_type: "reward" | "adjustment" | "payout";
+  amount: number;
+  note: string | null;
+  balance_after: number;
+  created_at: string;
 };

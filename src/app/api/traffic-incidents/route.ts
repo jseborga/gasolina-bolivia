@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { registerCommunityContribution } from "@/lib/contributor-rewards";
 import { isMissingTableError } from "@/lib/supabase-errors";
 import { getAdminSupabase } from "@/lib/supabase-server";
 import {
@@ -199,6 +200,36 @@ export async function POST(request: NextRequest) {
 
     if (analyticsError && !isMissingTableError(analyticsError, "app_events")) {
       console.error("traffic incident tracking failed", analyticsError.message);
+    }
+
+    try {
+      await registerCommunityContribution({
+        contributorToken:
+          typeof body.contributorToken === "string" ? body.contributorToken : null,
+        duplicateSignature: [
+          "incident",
+          incidentType,
+          latitudeBucket?.toFixed(3) ?? "no-lat",
+          longitudeBucket?.toFixed(3) ?? "no-lng",
+          Math.round(radiusMeters),
+        ].join(":"),
+        ipAddress,
+        latitudeBucket,
+        longitudeBucket,
+        metadata: {
+          duration_minutes: durationMinutes,
+          incident_type: incidentType,
+          radius_meters: radiusMeters,
+        },
+        sourceId: Number(incident.id),
+        sourceType: "traffic_incident",
+        visitorId,
+      });
+    } catch (rewardError) {
+      console.error(
+        "traffic incident contribution tracking failed",
+        rewardError instanceof Error ? rewardError.message : rewardError
+      );
     }
 
     return NextResponse.json({ incident });

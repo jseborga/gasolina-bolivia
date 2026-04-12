@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { isMissingTableError } from "@/lib/supabase-errors";
+import { registerCommunityContribution } from "@/lib/contributor-rewards";
+import { isMissingColumnError, isMissingTableError } from "@/lib/supabase-errors";
 import { getAdminSupabase } from "@/lib/supabase-server";
 import type { PlaceReportReason } from "@/lib/types";
 
@@ -91,24 +92,32 @@ export async function POST(request: NextRequest) {
     });
 
     const supabase = getAdminSupabase();
-    const { error } = await supabase.from("place_reports").upsert(
-      {
-        target_type: targetType,
-        target_id: targetId,
-        target_name: targetName,
-        reason,
-        notes,
-        reviewer_key: reviewerKey,
-        visitor_id: visitorId,
-        ip_address: ipAddress,
-        latitude_bucket: latitudeBucket,
-        longitude_bucket: longitudeBucket,
-        user_agent: request.headers.get("user-agent"),
-      },
-      {
-        onConflict: "target_type,target_id,reason,reviewer_key",
-      }
-    );
+    const { data, error } = await supabase
+      .from("place_reports")
+      .upsert(
+        {
+          target_type: targetType,
+          target_id: targetId,
+          target_name: targetName,
+          reason,
+          notes,
+          reviewer_key: reviewerKey,
+          review_notes: null,
+          reviewed_at: null,
+          reviewed_by_email: null,
+          status: "pending",
+          visitor_id: visitorId,
+          ip_address: ipAddress,
+          latitude_bucket: latitudeBucket,
+          longitude_bucket: longitudeBucket,
+          user_agent: request.headers.get("user-agent"),
+        },
+        {
+          onConflict: "target_type,target_id,reason,reviewer_key",
+        }
+      )
+      .select("*")
+      .single();
 
     if (isMissingTableError(error, "place_reports")) {
       return NextResponse.json(
@@ -117,8 +126,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (
+      isMissingColumnError(error, "place_reports", [
+        "status",
+        "review_notes",
+        "reviewed_at",
+        "reviewed_by_email",
+      ])
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Faltan columnas de revision en place_reports. Ejecuta la migracion 011_contributor_rewards_and_place_report_review.sql.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (error || !data) {
+      return NextResponse.json(
+        { error: error?.message || "No se pudo guardar la denuncia." },
+        { status: 400 }
+      );
     }
 
     const { error: analyticsError } = await supabase.from("app_events").insert({
@@ -139,6 +168,36 @@ export async function POST(request: NextRequest) {
 
     if (analyticsError && !isMissingTableError(analyticsError, "app_events")) {
       console.error("place report tracking failed", analyticsError.message);
+    }
+
+    try {
+      await registerCommunityContribution({
+        contributorToken:
+          typeof body.contributorToken === "string" ? body.contributorToken : null,
+        duplicateSignature: [
+          "place",
+          targetType,
+          targetId,
+          reason,
+        ].join(":"),
+        ipAddress,
+        latitudeBucket,
+        longitudeBucket,
+        metadata: {
+          reason,
+          target_id: targetId,
+          target_type: targetType,
+          target_name: targetName,
+        },
+        sourceId: Number(data.id),
+        sourceType: "place_report",
+        visitorId,
+      });
+    } catch (rewardError) {
+      console.error(
+        "place report contribution tracking failed",
+        rewardError instanceof Error ? rewardError.message : rewardError
+      );
     }
 
     return NextResponse.json({ ok: true });
