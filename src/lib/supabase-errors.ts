@@ -57,3 +57,11 @@ export function isMissingColumnError(
 export function getMissingSupportServicesMessage() {
   return "Falta la tabla support_services en Supabase. Ejecuta la migración supabase/003_support_services.sql y vuelve a desplegar.";
 }
+
+export function getMissingParkingSitesMessage() {
+  return "Falta la tabla parking_sites en Supabase. Ejecuta la migración supabase/010_parking_profiles_and_sites.sql y vuelve a desplegar.";
+}
+
+export function getMissingAppProfilesMessage() {
+  return "Falta la tabla app_profiles en Supabase. Ejecuta la migración supabase/010_parking_profiles_and_sites.sql y vuelve a desplegar.";
+}

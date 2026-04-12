@@ -7,6 +7,14 @@ export type SupportServiceCategory =
   | "servicio_mecanico"
   | "aditivos";
 
+export type AppProfileRole =
+  | "parking_manager"
+  | "trusted_reporter"
+  | "reviewer"
+  | "admin_assistant";
+
+export type ParkingStatus = "open" | "closed" | "full" | "unknown";
+
 export type TrafficIncidentType =
   | "control_vial"
   | "corte_via"
@@ -95,9 +103,75 @@ export type SupportServiceWithDistance = SupportService & {
   distanceKm?: number | null;
 };
 
+export type AppProfile = {
+  id: number;
+  full_name: string;
+  role: AppProfileRole;
+  email: string | null;
+  phone: string | null;
+  phone_key?: string | null;
+  whatsapp_number: string | null;
+  whatsapp_key?: string | null;
+  telegram_chat_id: string | null;
+  manager_access_token: string;
+  reliability_score: number | null;
+  credit_balance: number | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ParkingSite = {
+  id: number;
+  code: string;
+  name: string;
+  city: string | null;
+  zone: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  total_spots: number | null;
+  available_spots: number | null;
+  pricing_text: string | null;
+  opens_at: string | null;
+  closes_at: string | null;
+  is_24h: boolean;
+  accepts_reservations: boolean;
+  height_limit_text: string | null;
+  payment_methods: string | null;
+  access_notes: string | null;
+  phone: string | null;
+  whatsapp_number: string | null;
+  source_url: string | null;
+  manager_profile_id: number | null;
+  manager_name?: string | null;
+  status: ParkingStatus;
+  is_active: boolean;
+  is_published: boolean;
+  is_verified: boolean;
+  last_update_source: string | null;
+  last_updated_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ParkingSiteWithDistance = ParkingSite & {
+  distanceKm?: number | null;
+};
+
+export type ParkingUpdateInput = {
+  parking_site_id: number;
+  status: ParkingStatus;
+  available_spots?: number | null;
+  pricing_text?: string;
+  note?: string;
+};
+
 export type VendorRequestCategory =
   | SupportServiceCategory
-  | "estacion";
+  | "estacion"
+  | "parqueo";
 
 export type VendorRequestInput = {
   name: string;

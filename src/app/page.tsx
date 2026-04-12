@@ -3,6 +3,7 @@ import { Dashboard } from "@/components/dashboard";
 import { getAppBaseUrl } from "@/lib/app-url";
 import { getOptionalAdminSession } from "@/lib/admin-auth";
 import {
+  getMissingParkingSitesMessage,
   getMissingSupportServicesMessage,
   isMissingColumnError,
   isMissingTableError,
@@ -14,14 +15,21 @@ import {
   SUPPORT_SERVICE_SELECT,
   withSupportServiceDefaults,
 } from "@/lib/support-services-compat";
-import { Report, Station, StationWithLatest, SupportService, TrafficIncident } from "@/lib/types";
+import {
+  ParkingSite,
+  Report,
+  Station,
+  StationWithLatest,
+  SupportService,
+  TrafficIncident,
+} from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Mapa de gasolina, talleres, gruas y aditivos en Bolivia",
+  title: "Mapa de gasolina, talleres, parqueos, gruas y aditivos en Bolivia",
   description:
-    "Ubica surtidores activos, reporta estado de gasolina y encuentra talleres, gruas, auxilio mecanico y aditivos cerca de tu ubicacion.",
+    "Ubica surtidores activos, reporta estado de gasolina y encuentra talleres, parqueos, gruas, auxilio mecanico y aditivos cerca de tu ubicacion.",
 };
 
 export default async function HomePage() {
@@ -54,19 +62,24 @@ export default async function HomePage() {
       .select(SUPPORT_SERVICE_SELECT)
       .order("category")
       .order("name");
+    const parkingSitesQuery = supabase.from("parking_sites").select("*").order("name");
 
     if (!adminSession) {
       initialServicesQuery.eq("is_active", true).eq("is_published", true);
+      parkingSitesQuery.eq("is_active", true).eq("is_published", true);
     }
 
-    const [initialServicesResult, incidentsResult] = await Promise.all([
+    const [initialServicesResult, incidentsResult, parkingSitesResult] = await Promise.all([
       initialServicesQuery,
       incidentsQuery,
+      parkingSitesQuery,
     ]);
     let servicesData: SupportService[] = [];
     let servicesError = initialServicesResult.error;
     let incidentsData: TrafficIncident[] = [];
     let incidentsError = incidentsResult.error;
+    let parkingSitesData: ParkingSite[] = [];
+    let parkingSitesError = parkingSitesResult.error;
 
     if (!servicesError && initialServicesResult.data) {
       servicesData = initialServicesResult.data as unknown as SupportService[];
@@ -74,6 +87,10 @@ export default async function HomePage() {
 
     if (!incidentsError && incidentsResult.data) {
       incidentsData = incidentsResult.data as TrafficIncident[];
+    }
+
+    if (!parkingSitesError && parkingSitesResult.data) {
+      parkingSitesData = parkingSitesResult.data as ParkingSite[];
     }
 
     if (isMissingColumnError(servicesError, "support_services", SUPPORT_SERVICE_OPTIONAL_COLUMNS)) {
@@ -97,12 +114,14 @@ export default async function HomePage() {
 
     const servicesTableMissing = isMissingTableError(servicesError, "support_services");
     const incidentsTableMissing = isMissingTableError(incidentsError, "traffic_incidents");
+    const parkingSitesTableMissing = isMissingTableError(parkingSitesError, "parking_sites");
 
     if (
       stationsError ||
       reportsError ||
       (servicesError && !servicesTableMissing) ||
-      (incidentsError && !incidentsTableMissing)
+      (incidentsError && !incidentsTableMissing) ||
+      (parkingSitesError && !parkingSitesTableMissing)
     ) {
       return (
         <main className="mx-auto max-w-5xl px-6 py-10">
@@ -111,7 +130,8 @@ export default async function HomePage() {
             {stationsError?.message ||
               reportsError?.message ||
               servicesError?.message ||
-              incidentsError?.message}
+              incidentsError?.message ||
+              parkingSitesError?.message}
           </div>
         </main>
       );
@@ -121,6 +141,7 @@ export default async function HomePage() {
     const reports = (reportsData ?? []) as Report[];
     const services = (servicesTableMissing ? [] : servicesData ?? []) as SupportService[];
     const incidents = (incidentsTableMissing ? [] : incidentsData ?? []) as TrafficIncident[];
+    const parkingSites = (parkingSitesTableMissing ? [] : parkingSitesData ?? []) as ParkingSite[];
 
     const latestByStation = new Map<number, Report>();
     for (const report of reports) {
@@ -136,7 +157,7 @@ export default async function HomePage() {
       "@context": "https://schema.org",
       "@type": "WebSite",
       description:
-        "Mapa colaborativo para encontrar gasolina, estaciones de servicio, talleres, gruas y aditivos en Bolivia.",
+        "Mapa colaborativo para encontrar gasolina, estaciones de servicio, parqueos, talleres, gruas y aditivos en Bolivia.",
       inLanguage: "es-BO",
       name: "SurtiMapa Bolivia",
       potentialAction: {
@@ -164,9 +185,15 @@ export default async function HomePage() {
             <code> supabase/009_traffic_incidents.sql</code>.
           </div>
         ) : null}
+        {parkingSitesTableMissing ? (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {getMissingParkingSitesMessage()}
+          </div>
+        ) : null}
 
         <Dashboard
           adminSession={adminSession ? { email: adminSession.email } : null}
+          initialParkingSites={parkingSites}
           initialTrafficIncidents={incidents}
           initialStations={stationsWithLatest}
           initialServices={services}

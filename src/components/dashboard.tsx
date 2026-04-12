@@ -10,6 +10,11 @@ import type { StationAdminInput } from "@/lib/admin-types";
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
 import { getNearbyTrafficIncidents, limitItemsToNearby } from "@/lib/map-visibility";
 import {
+  formatParkingAvailability,
+  getParkingStatusLabel,
+  getParkingStatusPillClass,
+} from "@/lib/parking";
+import {
   formatAvailability,
   formatFuelType,
   formatQueue,
@@ -18,6 +23,8 @@ import {
 import { getSupportServiceLabel } from "@/lib/services";
 import { getTrafficIncidentLabel } from "@/lib/traffic-incidents";
 import type {
+  ParkingSite,
+  ParkingSiteWithDistance,
   Report,
   ReportInput,
   StationWithLatest,
@@ -35,6 +42,7 @@ const StationsMap = dynamic(() => import("@/components/stations-map"), {
 
 type DashboardProps = {
   adminSession?: { email: string } | null;
+  initialParkingSites: ParkingSite[];
   initialStations: StationWithLatest[];
   initialServices: SupportService[];
   initialTrafficIncidents: TrafficIncident[];
@@ -85,9 +93,16 @@ type SearchResult =
       distanceKm: number | null;
       searchRank: number;
       service: SupportServiceWithDistance;
+    }
+  | {
+      key: string;
+      kind: "parking";
+      distanceKm: number | null;
+      parking: ParkingSiteWithDistance;
+      searchRank: number;
     };
 
-type PublicMapFilter = "stations" | "servicio_mecanico" | "none";
+type PublicMapFilter = "stations" | "servicio_mecanico" | "parking" | "none";
 type IncidentMapFilter =
   | "all"
   | "nearby"
@@ -319,12 +334,14 @@ function buildServiceAdminPayload(
 
 export function Dashboard({
   adminSession = null,
+  initialParkingSites,
   initialTrafficIncidents,
   initialStations,
   initialServices,
   reportCount = 0,
 }: DashboardProps) {
   const isAdminMode = Boolean(adminSession);
+  const [parkings, setParkings] = useState<ParkingSite[]>(initialParkingSites);
   const [stations, setStations] = useState<StationWithLatest[]>(initialStations);
   const [services, setServices] = useState<SupportService[]>(initialServices);
   const [trafficIncidents, setTrafficIncidents] =
@@ -357,6 +374,10 @@ export function Dashboard({
   const detailSectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    setParkings(initialParkingSites);
+  }, [initialParkingSites]);
+
+  useEffect(() => {
     setStations(initialStations);
   }, [initialStations]);
 
@@ -374,11 +395,17 @@ export function Dashboard({
       targetType: "system",
       metadata: {
         initial_incidents: initialTrafficIncidents.length,
+        initial_parkings: initialParkingSites.length,
         initial_services: initialServices.length,
         initial_stations: initialStations.length,
       },
     });
-  }, [initialServices.length, initialStations.length, initialTrafficIncidents.length]);
+  }, [
+    initialParkingSites.length,
+    initialServices.length,
+    initialStations.length,
+    initialTrafficIncidents.length,
+  ]);
 
   useEffect(() => {
     if (isAdminMode || typeof window === "undefined") {
@@ -439,11 +466,37 @@ export function Dashboard({
     });
   }, [isAdminMode, services, userLocation]);
 
+  const parkingsWithDistance = useMemo<ParkingSiteWithDistance[]>(() => {
+    return parkings.map((parking) => {
+      let distanceKm: number | null = null;
+
+      if (
+        userLocation &&
+        !isAdminMode &&
+        typeof parking.latitude === "number" &&
+        typeof parking.longitude === "number"
+      ) {
+        distanceKm = haversineKm(
+          userLocation.lat,
+          userLocation.lng,
+          parking.latitude,
+          parking.longitude
+        );
+      }
+
+      return {
+        ...parking,
+        distanceKm,
+      };
+    });
+  }, [isAdminMode, parkings, userLocation]);
+
   const normalizedQuery = normalizeSearchValue(search);
 
   const results = useMemo<SearchResult[]>(() => {
     const showStations = isAdminMode || publicMapFilter === "stations";
     const showServices = isAdminMode || publicMapFilter === "servicio_mecanico";
+    const showParkings = isAdminMode || publicMapFilter === "parking";
 
     const stationResults: SearchResult[] = showStations
       ? stationsWithDistance
@@ -511,7 +564,39 @@ export function Dashboard({
           .filter((item) => !normalizedQuery || item.searchRank >= 0)
       : [];
 
-    const sortedResults = [...stationResults, ...serviceResults].sort((a, b) => {
+    const parkingResults: SearchResult[] = showParkings
+      ? parkingsWithDistance
+          .map((parking) => {
+            const searchText = normalizeSearchValue(
+              [
+                parking.code,
+                parking.name,
+                parking.zone,
+                parking.city,
+                parking.address,
+                parking.payment_methods,
+                parking.access_notes,
+                parking.pricing_text,
+                parking.manager_name,
+                getParkingStatusLabel(parking.status),
+              ]
+                .filter(Boolean)
+                .join(" ")
+            );
+
+            const searchRank = getMatchRank(searchText, normalizedQuery, parking.name);
+            return {
+              distanceKm: parking.distanceKm ?? null,
+              key: `parking-${parking.id}`,
+              kind: "parking" as const,
+              parking,
+              searchRank,
+            };
+          })
+          .filter((item) => !normalizedQuery || item.searchRank >= 0)
+      : [];
+
+    const sortedResults = [...stationResults, ...serviceResults, ...parkingResults].sort((a, b) => {
       if (normalizedQuery) {
         if (a.searchRank !== b.searchRank) return b.searchRank - a.searchRank;
       }
@@ -520,8 +605,10 @@ export function Dashboard({
       const bDistance = b.distanceKm ?? Number.POSITIVE_INFINITY;
       if (aDistance !== bDistance) return aDistance - bDistance;
 
-      const aName = a.kind === "station" ? a.station.name : a.service.name;
-      const bName = b.kind === "station" ? b.station.name : b.service.name;
+      const aName =
+        a.kind === "station" ? a.station.name : a.kind === "service" ? a.service.name : a.parking.name;
+      const bName =
+        b.kind === "station" ? b.station.name : b.kind === "service" ? b.service.name : b.parking.name;
       return aName.localeCompare(bName, "es");
     });
 
@@ -533,6 +620,7 @@ export function Dashboard({
   }, [
     isAdminMode,
     normalizedQuery,
+    parkingsWithDistance,
     publicMapFilter,
     servicesWithDistance,
     stationsWithDistance,
@@ -588,7 +676,13 @@ export function Dashboard({
       return;
     }
 
-    setServiceAdminDraft(createServiceAdminDraft(selectedResult.service));
+    if (selectedResult.kind === "service") {
+      setServiceAdminDraft(createServiceAdminDraft(selectedResult.service));
+      setStationAdminDraft(null);
+      return;
+    }
+
+    setServiceAdminDraft(null);
     setStationAdminDraft(null);
   }, [isAdminMode, selectedResult]);
 
@@ -603,6 +697,14 @@ export function Dashboard({
 
   const mapServices = useMemo(
     () => results.filter((item): item is Extract<SearchResult, { kind: "service" }> => item.kind === "service").map((item) => item.service),
+    [results]
+  );
+
+  const mapParkings = useMemo(
+    () =>
+      results
+        .filter((item): item is Extract<SearchResult, { kind: "parking" }> => item.kind === "parking")
+        .map((item) => item.parking),
     [results]
   );
 
@@ -713,8 +815,18 @@ export function Dashboard({
 
     trackAppEvent({
       eventType: source === "map" ? "map_select" : "result_select",
-      targetId: item.kind === "station" ? item.station.id : item.service.id,
-      targetName: item.kind === "station" ? item.station.name : item.service.name,
+      targetId:
+        item.kind === "station"
+          ? item.station.id
+          : item.kind === "service"
+            ? item.service.id
+            : item.parking.id,
+      targetName:
+        item.kind === "station"
+          ? item.station.name
+          : item.kind === "service"
+            ? item.service.name
+            : item.parking.name,
       targetType: item.kind,
       metadata: {
         source,
@@ -879,6 +991,11 @@ export function Dashboard({
         (station) => buildStationAdminPayload(station, stationAdminDraft),
         "Estacion actualizada desde el mapa."
       );
+      return;
+    }
+
+    if (selectedResult.kind === "parking") {
+      window.location.href = `/admin/parking-sites/${selectedResult.parking.id}`;
       return;
     }
 
@@ -1417,7 +1534,7 @@ export function Dashboard({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar estacion o auxilio"
+              placeholder="Buscar estacion, parqueo o auxilio"
               className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
             />
           </div>
@@ -1447,6 +1564,19 @@ export function Dashboard({
               }`}
             >
               🔧
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTogglePublicFilter("parking")}
+              aria-label="Parqueos cercanos"
+              title="Parqueos cercanos"
+              className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                publicMapFilter === "parking"
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "bg-white text-slate-700 ring-1 ring-slate-200"
+              }`}
+            >
+              🅿️
             </button>
             <button
               type="button"
@@ -1589,11 +1719,18 @@ export function Dashboard({
       {isAdminMode && quickResults.length > 0 ? (
         <section className="flex gap-2 overflow-x-auto pb-1">
           {quickResults.map((item) => {
-            const title = item.kind === "station" ? item.station.name : item.service.name;
+            const title =
+              item.kind === "station"
+                ? item.station.name
+                : item.kind === "service"
+                  ? item.service.name
+                  : item.parking.name;
             const subtitle =
               item.kind === "station"
                 ? item.station.zone || "Surtidor"
-                : getSupportServiceLabel(item.service.category);
+                : item.kind === "service"
+                  ? getSupportServiceLabel(item.service.category)
+                  : item.parking.zone || "Parqueo";
 
             return (
               <button
@@ -1886,6 +2023,7 @@ export function Dashboard({
             onAdminToggleServicePublication={handleAdminToggleServicePublication}
             onAdminToggleServiceVerification={handleAdminToggleServiceVerification}
             onAdminToggleStationVerification={handleAdminToggleStationVerification}
+            parkingSites={mapParkings}
             services={mapServices}
             stations={mapStations}
             selectedKey={selectedKey}
@@ -2177,7 +2315,7 @@ export function Dashboard({
               </div>
             ) : null}
           </div>
-        ) : (
+        ) : selectedResult.kind === "service" ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -2536,6 +2674,137 @@ export function Dashboard({
                 </div>
               </div>
             ) : null}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                  Parqueo
+                </span>
+                <h2 className="mt-3 text-xl font-semibold text-slate-900">
+                  {selectedResult.parking.name}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {[selectedResult.parking.zone, selectedResult.parking.city]
+                    .filter(Boolean)
+                    .join(" | ") || "Sin zona"}
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${getParkingStatusPillClass(
+                  selectedResult.parking.status
+                )}`}
+              >
+                {getParkingStatusLabel(selectedResult.parking.status)}
+              </span>
+            </div>
+
+            <div className="grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Direccion</div>
+                <div className="mt-2">{selectedResult.parking.address || "Sin direccion"}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Disponibilidad</div>
+                <div className="mt-2">
+                  {formatParkingAvailability(
+                    selectedResult.parking.available_spots,
+                    selectedResult.parking.total_spots
+                  )}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Horario</div>
+                <div className="mt-2">
+                  {selectedResult.parking.is_24h
+                    ? "24 horas"
+                    : [selectedResult.parking.opens_at, selectedResult.parking.closes_at]
+                        .filter(Boolean)
+                        .join(" - ") || "Sin horario"}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">Precio</div>
+                <div className="mt-2">{selectedResult.parking.pricing_text || "Sin dato"}</div>
+              </div>
+            </div>
+
+            {selectedResult.parking.access_notes ? (
+              <div className="rounded-2xl border border-slate-200 p-4 text-sm text-slate-700">
+                {selectedResult.parking.access_notes}
+              </div>
+            ) : null}
+
+            {selectedResult.distanceKm != null ? (
+              <div className="text-sm text-slate-500">
+                Distancia aproximada: {formatDistance(selectedResult.distanceKm)}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-3">
+              {buildWhatsAppHref(
+                selectedResult.parking.whatsapp_number ?? selectedResult.parking.phone
+              ) ? (
+                <a
+                  href={buildWhatsAppHref(
+                    selectedResult.parking.whatsapp_number ?? selectedResult.parking.phone
+                  )}
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "contact_whatsapp",
+                      targetId: selectedResult.parking.id,
+                      targetName: selectedResult.parking.name,
+                      targetType: "parking",
+                    })
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  WhatsApp
+                </a>
+              ) : null}
+
+              {buildTelHref(selectedResult.parking.phone ?? selectedResult.parking.whatsapp_number) ? (
+                <a
+                  href={buildTelHref(
+                    selectedResult.parking.phone ?? selectedResult.parking.whatsapp_number
+                  )}
+                  onClick={() =>
+                    trackAppEvent({
+                      eventType: "contact_phone",
+                      targetId: selectedResult.parking.id,
+                      targetName: selectedResult.parking.name,
+                      targetType: "parking",
+                    })
+                  }
+                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Llamar
+                </a>
+              ) : null}
+
+              {normalizeExternalUrl(selectedResult.parking.source_url) ? (
+                <a
+                  href={normalizeExternalUrl(selectedResult.parking.source_url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Abrir enlace
+                </a>
+              ) : null}
+
+              {isAdminMode ? (
+                <a
+                  href={`/admin/parking-sites/${selectedResult.parking.id}`}
+                  className="rounded-xl border border-sky-300 bg-white px-4 py-3 text-sm font-medium text-sky-700 hover:bg-sky-50"
+                >
+                  Editar parqueo
+                </a>
+              ) : null}
+            </div>
           </div>
         )}
       </section>

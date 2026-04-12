@@ -11,11 +11,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-xl font-semibold text-slate-900">Admin | SurtiMapa</h1>
-            <p className="text-sm text-slate-500">Gestión interna de estaciones de servicio.</p>
+            <p className="text-sm text-slate-500">
+              Gestion interna de estaciones, auxilio mecanico y parqueos.
+            </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <nav className="flex items-center gap-3 text-sm">
+            <nav className="flex flex-wrap items-center gap-3 text-sm">
               <Link href="/admin" className="text-slate-700 hover:text-slate-900">
                 Inicio admin
               </Link>
@@ -24,6 +26,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               </Link>
               <Link href="/admin/services" className="text-slate-700 hover:text-slate-900">
                 Servicios
+              </Link>
+              <Link href="/admin/parking-sites" className="text-slate-700 hover:text-slate-900">
+                Parqueos
+              </Link>
+              <Link href="/admin/profiles" className="text-slate-700 hover:text-slate-900">
+                Perfiles
               </Link>
               <Link href="/admin/analytics" className="text-slate-700 hover:text-slate-900">
                 Analytics

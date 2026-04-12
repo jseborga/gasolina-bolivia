@@ -1,0 +1,93 @@
+import type { AppProfileRole, ParkingStatus } from "@/lib/types";
+
+export type ParkingSiteAdminInput = {
+  code: string;
+  name: string;
+  city?: string;
+  zone?: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  total_spots?: number | null;
+  available_spots?: number | null;
+  pricing_text?: string;
+  opens_at?: string;
+  closes_at?: string;
+  is_24h?: boolean;
+  accepts_reservations?: boolean;
+  height_limit_text?: string;
+  payment_methods?: string;
+  access_notes?: string;
+  phone?: string;
+  whatsapp_number?: string;
+  source_url?: string;
+  manager_profile_id?: number | null;
+  status?: ParkingStatus;
+  is_active?: boolean;
+  is_published?: boolean;
+  is_verified?: boolean;
+};
+
+export type ParkingSiteAdminRow = {
+  id: number;
+  code: string;
+  name: string;
+  city: string | null;
+  zone: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  total_spots: number | null;
+  available_spots: number | null;
+  pricing_text: string | null;
+  opens_at: string | null;
+  closes_at: string | null;
+  is_24h: boolean;
+  accepts_reservations: boolean;
+  height_limit_text: string | null;
+  payment_methods: string | null;
+  access_notes: string | null;
+  phone: string | null;
+  whatsapp_number: string | null;
+  source_url: string | null;
+  manager_profile_id: number | null;
+  status: ParkingStatus;
+  is_active: boolean;
+  is_published: boolean;
+  is_verified: boolean;
+  last_update_source: string | null;
+  last_updated_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AppProfileAdminInput = {
+  full_name: string;
+  role: AppProfileRole;
+  email?: string;
+  phone?: string;
+  whatsapp_number?: string;
+  telegram_chat_id?: string;
+  reliability_score?: number | null;
+  credit_balance?: number | null;
+  is_active?: boolean;
+  notes?: string;
+  regenerate_access_token?: boolean;
+};
+
+export type AppProfileAdminRow = {
+  id: number;
+  full_name: string;
+  role: AppProfileRole;
+  email: string | null;
+  phone: string | null;
+  whatsapp_number: string | null;
+  telegram_chat_id: string | null;
+  manager_access_token: string;
+  reliability_score: number | null;
+  credit_balance: number | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string;
+};

@@ -11,6 +11,7 @@ const categoryOptions: Array<{ label: string; value: VendorRequestCategory }> = 
   { label: "Auxilio mecanico", value: "servicio_mecanico" },
   { label: "Aditivos", value: "aditivos" },
   { label: "Estacion de servicio", value: "estacion" },
+  { label: "Parqueo", value: "parqueo" },
 ];
 
 export function VendorRequestForm() {
@@ -105,7 +106,7 @@ export function VendorRequestForm() {
         notes: "",
       });
       setMessage(
-        "Solicitud recibida. El siguiente paso recomendado es habilitar verificacion por correo y un portal de proveedor."
+        "Solicitud recibida. El siguiente paso recomendado es habilitar verificacion por correo y un portal del proveedor."
       );
     } catch (submitError) {
       setError(

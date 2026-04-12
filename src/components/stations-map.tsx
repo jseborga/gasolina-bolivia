@@ -16,6 +16,11 @@ import "leaflet/dist/leaflet.css";
 import { trackAppEvent } from "@/lib/analytics";
 import { RatingStars } from "@/components/rating-stars";
 import { buildTelHref, buildWhatsAppHref, formatContactLabel } from "@/lib/contact";
+import {
+  formatParkingAvailability,
+  getParkingStatusLabel,
+  getParkingStatusPillClass,
+} from "@/lib/parking";
 import { formatAvailability, formatFuelType, formatQueue, formatRelativeTime } from "@/lib/reporting";
 import { getSupportServiceLabel } from "@/lib/services";
 import {
@@ -28,6 +33,7 @@ import {
   TRAFFIC_INCIDENT_RADIUS_OPTIONS,
 } from "@/lib/traffic-incidents";
 import type {
+  ParkingSiteWithDistance,
   ReportInput,
   StationWithLatest,
   SupportServiceCategory,
@@ -92,6 +98,7 @@ type StationsMapProps = {
     score: number;
     serviceId: number;
   }) => Promise<{ ok: boolean; message: string }>;
+  parkingSites: ParkingSiteWithDistance[];
   services: SupportServiceWithDistance[];
   stations: (StationWithLatest & { distanceKm?: number | null })[];
   selectedKey: string | null;
@@ -1202,6 +1209,80 @@ function ServicePopupCard({
   );
 }
 
+function ParkingPopupCard({
+  isAdminMode,
+  parking,
+}: {
+  isAdminMode: boolean;
+  parking: ParkingSiteWithDistance;
+}) {
+  const phoneHref = buildTelHref(parking.phone ?? parking.whatsapp_number);
+  const whatsappHref = buildWhatsAppHref(parking.whatsapp_number ?? parking.phone);
+
+  return (
+    <div className="w-[72vw] min-w-[210px] max-w-[250px] space-y-2 text-xs text-slate-800 sm:w-[250px]">
+      <div className="text-sm font-semibold leading-tight">{parking.name}</div>
+      <div className="flex flex-wrap gap-2 text-[11px]">
+        <span
+          className={`rounded-full px-2 py-1 font-medium ${getParkingStatusPillClass(
+            parking.status
+          )}`}
+        >
+          {getParkingStatusLabel(parking.status)}
+        </span>
+        {parking.distanceKm != null ? (
+          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">
+            {parking.distanceKm < 1
+              ? `${Math.round(parking.distanceKm * 1000)} m`
+              : `${parking.distanceKm.toFixed(1)} km`}
+          </span>
+        ) : null}
+      </div>
+      <div>{[parking.zone, parking.city].filter(Boolean).join(" | ") || "Sin zona"}</div>
+      <div>{parking.address || "Sin direccion"}</div>
+      <div>
+        Disponibilidad: {formatParkingAvailability(parking.available_spots, parking.total_spots)}
+      </div>
+      <div>Precio: {parking.pricing_text || "Sin dato"}</div>
+      <div>
+        Horario:{" "}
+        {parking.is_24h
+          ? "24 horas"
+          : [parking.opens_at, parking.closes_at].filter(Boolean).join(" - ") || "Sin horario"}
+      </div>
+      {parking.access_notes ? <div>{parking.access_notes}</div> : null}
+      <div className="flex flex-wrap gap-2 pt-1">
+        {whatsappHref ? (
+          <a
+            href={whatsappHref}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-medium text-white"
+          >
+            WhatsApp
+          </a>
+        ) : null}
+        {phoneHref ? (
+          <a
+            href={phoneHref}
+            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700"
+          >
+            Llamar
+          </a>
+        ) : null}
+        {isAdminMode ? (
+          <a
+            href={`/admin/parking-sites/${parking.id}`}
+            className="rounded-lg border border-sky-300 px-2.5 py-1.5 text-[11px] font-medium text-sky-700"
+          >
+            Editar
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function getStationMarkerColor(status?: string | null) {
   switch (status) {
     case "si_hay":
@@ -1226,6 +1307,31 @@ function getServiceMarkerMeta(category: SupportServiceCategory) {
     default:
       return { color: "#15803d", label: "$" };
   }
+}
+
+function createParkingMarkerIcon(isSelected: boolean, isActive: boolean) {
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="
+        width:${isSelected ? 28 : 24}px;
+        height:${isSelected ? 28 : 24}px;
+        border-radius:8px;
+        background:${isActive ? "#1d4ed8" : "#94a3b8"};
+        border:2px solid white;
+        box-shadow:0 0 0 ${isSelected ? 2 : 1}px rgba(15,23,42,0.24);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        color:white;
+        font-size:${isSelected ? 13 : 12}px;
+        font-weight:700;
+        opacity:${isActive ? 1 : 0.68};
+      ">P</div>
+    `,
+    iconSize: [isSelected ? 28 : 24, isSelected ? 28 : 24],
+    iconAnchor: [isSelected ? 14 : 12, isSelected ? 14 : 12],
+  });
 }
 
 function createStationMarkerIcon(color: string, isSelected: boolean, isActive: boolean) {
@@ -1314,10 +1420,12 @@ function createTrafficIncidentMarkerIcon(
 }
 
 function MapFocusController({
+  parkingSites,
   selectedKey,
   stations,
   services,
 }: {
+  parkingSites: ParkingSiteWithDistance[];
   selectedKey: string | null;
   stations: (StationWithLatest & { distanceKm?: number | null })[];
   services: SupportServiceWithDistance[];
@@ -1333,9 +1441,12 @@ function MapFocusController({
     const service = selectedKey.startsWith("service-")
       ? services.find((item) => `service-${item.id}` === selectedKey)
       : null;
+    const parking = selectedKey.startsWith("parking-")
+      ? parkingSites.find((item) => `parking-${item.id}` === selectedKey)
+      : null;
 
-    const latitude = station?.latitude ?? service?.latitude;
-    const longitude = station?.longitude ?? service?.longitude;
+    const latitude = station?.latitude ?? service?.latitude ?? parking?.latitude;
+    const longitude = station?.longitude ?? service?.longitude ?? parking?.longitude;
 
     if (typeof latitude === "number" && typeof longitude === "number") {
       const zoom = Math.max(map.getZoom(), 15);
@@ -1367,7 +1478,7 @@ function MapFocusController({
         duration: 0.55,
       });
     }
-  }, [map, selectedKey, services, stations]);
+  }, [map, parkingSites, selectedKey, services, stations]);
 
   return null;
 }
@@ -1436,6 +1547,7 @@ export default function StationsMap({
   onSubmitPlaceReport,
   onSubmitStationReview,
   onSubmitServiceReview,
+  parkingSites,
   services,
   stations,
   selectedKey,
@@ -1476,7 +1588,12 @@ export default function StationsMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <MapFocusController selectedKey={selectedKey} stations={stations} services={services} />
+        <MapFocusController
+          parkingSites={parkingSites}
+          selectedKey={selectedKey}
+          stations={stations}
+          services={services}
+        />
         <UserLocationController focusKey={userLocationFocusKey} userLocation={userLocation} />
         <IncidentDraftController
           enabled={incidentReportMode}
@@ -1545,6 +1662,31 @@ export default function StationsMap({
             pathOptions={{ color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.95, weight: 2 }}
           />
         ) : null}
+
+        {parkingSites
+          .filter(
+            (parking) =>
+              typeof parking.latitude === "number" && typeof parking.longitude === "number"
+          )
+          .map((parking) => {
+            const key = `parking-${parking.id}`;
+            const isSelected = selectedKey === key;
+
+            return (
+              <Marker
+                key={key}
+                position={[parking.latitude as number, parking.longitude as number]}
+                icon={createParkingMarkerIcon(isSelected, parking.is_active)}
+                eventHandlers={{
+                  click: () => onSelectKey(key),
+                }}
+              >
+                <Popup keepInView maxWidth={280}>
+                  <ParkingPopupCard isAdminMode={isAdminMode} parking={parking} />
+                </Popup>
+              </Marker>
+            );
+          })}
 
         {services
           .filter(
