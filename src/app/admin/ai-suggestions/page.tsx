@@ -1,5 +1,6 @@
 import { requireAdminSession } from "@/lib/admin-auth";
 import AISuggestionReviewTable from "@/components/admin/ai-suggestion-review-table";
+import AISuggestionSimulatorCard from "@/components/admin/ai-suggestion-simulator-card";
 import { getAgentSuggestionKindLabel } from "@/lib/agent-suggestions";
 import { getMissingAgentSuggestionsMessage, isMissingTableError } from "@/lib/supabase-errors";
 import { getAdminSupabase } from "@/lib/supabase-server";
@@ -71,6 +72,8 @@ export default async function AdminAISuggestionsPage() {
 
     return (
       <div className="space-y-6">
+        <AISuggestionSimulatorCard />
+
         <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">Sugerencias</p>

@@ -1,4 +1,5 @@
 import { requireAdminSession } from "@/lib/admin-auth";
+import TrafficIncidentReviewTable from "@/components/admin/traffic-incident-review-table";
 import { isMissingTableError } from "@/lib/supabase-errors";
 import { getAdminSupabase } from "@/lib/supabase-server";
 import type { TrafficIncident } from "@/lib/types";
@@ -44,21 +45,37 @@ export default async function AdminTrafficIncidentsPage() {
 
     const incidents = (data ?? []) as TrafficIncident[];
     const activeCount = incidents.filter((item) => item.status === "active").length;
+    const resolvedCount = incidents.filter((item) => item.status === "resolved").length;
     const totalConfirmations = incidents.reduce(
       (sum, item) => sum + (item.confirmation_count ?? 0),
       0
     );
+    const rows = incidents.map((item) => ({
+      confirmationCount: item.confirmation_count,
+      createdAt: item.created_at,
+      description: item.description,
+      durationMinutes: item.duration_minutes,
+      id: item.id,
+      pointLabel: `${item.latitude.toFixed(4)}, ${item.longitude.toFixed(4)}`,
+      rejectionCount: item.rejection_count,
+      status: item.status,
+      typeLabel: incidentLabels[item.incident_type] || item.incident_type,
+    }));
 
     return (
       <div className="space-y-6">
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-4">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">Incidentes</p>
             <p className="mt-2 text-3xl font-semibold text-slate-900">{incidents.length}</p>
           </div>
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">Activos</p>
-            <p className="mt-2 text-3xl font-semibold text-slate-900">{activeCount}</p>
+            <p className="mt-2 text-3xl font-semibold text-emerald-700">{activeCount}</p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Resueltos</p>
+            <p className="mt-2 text-3xl font-semibold text-sky-700">{resolvedCount}</p>
           </div>
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">Confirmaciones</p>
@@ -70,52 +87,12 @@ export default async function AdminTrafficIncidentsPage() {
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-lg font-semibold text-slate-900">Incidentes recientes</h2>
             <p className="text-sm text-slate-500">
-              Reportes comunitarios de cortes, marchas, controles y otros eventos viales.
+              Revisa el registro de incidentes comunitarios y cierra los casos ya resueltos.
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-slate-600">
-                <tr>
-                  <th className="px-4 py-3">Fecha</th>
-                  <th className="px-4 py-3">Tipo</th>
-                  <th className="px-4 py-3">Detalle</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Duracion</th>
-                  <th className="px-4 py-3">Confirmaciones</th>
-                  <th className="px-4 py-3">Rechazos</th>
-                  <th className="px-4 py-3">Punto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {incidents.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-100 align-top">
-                    <td className="px-4 py-4 text-slate-600">
-                      {new Date(item.created_at).toLocaleString("es-BO")}
-                    </td>
-                    <td className="px-4 py-4 text-slate-700">
-                      {incidentLabels[item.incident_type] || item.incident_type}
-                    </td>
-                    <td className="px-4 py-4 text-slate-600">{item.description || "-"}</td>
-                    <td className="px-4 py-4 text-slate-600">{item.status}</td>
-                    <td className="px-4 py-4 text-slate-600">{item.duration_minutes} min</td>
-                    <td className="px-4 py-4 text-slate-600">{item.confirmation_count}</td>
-                    <td className="px-4 py-4 text-slate-600">{item.rejection_count}</td>
-                    <td className="px-4 py-4 text-slate-600">
-                      {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
-                    </td>
-                  </tr>
-                ))}
-                {incidents.length === 0 ? (
-                  <tr className="border-t border-slate-100">
-                    <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                      Aun no hay incidentes viales registrados.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+          <div className="p-5">
+            <TrafficIncidentReviewTable rows={rows} />
           </div>
         </section>
       </div>
