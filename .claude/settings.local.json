@@ -7,7 +7,18 @@
       "Bash(npx next:*)",
       "Bash(npm run:*)",
       "Bash(ls node_modules/.bin/next*)",
-      "Bash(node ./node_modules/next/dist/bin/next build)"
+      "Bash(node ./node_modules/next/dist/bin/next build)",
+      "Bash(node:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('mcpServers',{}\\), indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k\\) for k in d.keys\\(\\)]\")",
+      "WebSearch",
+      "WebFetch(domain:www.boliviayp.com)",
+      "WebFetch(domain:genex.com.bo)",
+      "WebFetch(domain:www.hashplace.com)",
+      "WebFetch(domain:gnb.com.bo)",
+      "WebFetch(domain:biopetrol.com.bo)",
+      "WebFetch(domain:bolivia-streets.openalfa.com)",
+      "WebFetch(domain:eju.tv)"
     ]
   }
 }
