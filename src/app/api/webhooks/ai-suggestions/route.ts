@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  isValidAgentWebhookSignature,
-  normalizeAgentSuggestionInput,
-} from "@/lib/agent-suggestions";
+import { isValidAgentWebhookSignature } from "@/lib/agent-suggestions.server";
+import { normalizeAgentSuggestionInput } from "@/lib/agent-suggestions";
 import { getMissingAgentSuggestionsMessage, isMissingTableError } from "@/lib/supabase-errors";
 import { getAdminSupabase } from "@/lib/supabase-server";
 

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh api:*)",
+      "WebFetch(domain:github.com)",
+      "Read(//c/Users/jseborga/OneDrive - SSA Ingenieria SRL/00 JSP PERSONAL/02 PROYECTOS/09 SURTIDORES-AUXILIO/gasolina-bolivia/**)",
+      "Bash(npx next:*)",
+      "Bash(npm run:*)",
+      "Bash(ls node_modules/.bin/next*)",
+      "Bash(node ./node_modules/next/dist/bin/next build)"
+    ]
+  }
+}
